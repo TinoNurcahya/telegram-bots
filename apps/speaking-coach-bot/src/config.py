@@ -53,7 +53,8 @@ class Settings(BaseSettings):
         default="0.0.0.0", description="Host address for webhook server"
     )
     webapp_port: int = Field(
-        default=8080, description="Port for webhook server"
+        default=int(os.getenv("PORT") or os.getenv("WEBAPP_PORT") or 8000),
+        description="Port for webhook server / cloud health check",
     )
 
     model_config = SettingsConfigDict(
@@ -80,5 +81,5 @@ def load_settings() -> Settings:
             webhook_path=os.getenv("WEBHOOK_PATH", "/webhook"),
             webhook_secret=os.getenv("WEBHOOK_SECRET", ""),
             webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0"),
-            webapp_port=int(os.getenv("WEBAPP_PORT", "8080")),
+            webapp_port=int(os.getenv("PORT") or os.getenv("WEBAPP_PORT") or "8000"),
         )

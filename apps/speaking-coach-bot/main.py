@@ -138,6 +138,13 @@ def run_webhook(
         secret_token=settings.webhook_secret or None,
     )
     webhook_handler.register(app, path=settings.webhook_path)
+
+    async def _health_handler(_: web.Request) -> web.Response:
+        return web.json_response({"status": "ok", "service": "SpeakingCoachBot", "mode": "webhook"})
+
+    app.router.add_get("/", _health_handler)
+    app.router.add_get("/health", _health_handler)
+
     setup_application(app, dp, bot=bot)
 
     async def _on_startup_app(_):
@@ -183,7 +190,7 @@ async def run_polling(
     dialogue_service: DialogueService,
     repo: Any,
 ) -> None:
-    """Run bot in Long Polling mode."""
+    """Run bot in Long Polling mode with embedded HTTP health check server."""
     dp["user_service"] = user_service
     dp["ai_coach_service"] = ai_coach_service
     dp["tts_service"] = tts_service
@@ -200,11 +207,31 @@ async def run_polling(
     )
     dp["reminder_task"] = reminder_task
 
+    # Background health check server for Koyeb / Render / Fly.io Free Web Services
+    health_app = web.Application()
+    async def _health_handler(_: web.Request) -> web.Response:
+        return web.json_response({"status": "ok", "service": "SpeakingCoachBot", "mode": "polling"})
+
+    health_app.router.add_get("/", _health_handler)
+    health_app.router.add_get("/health", _health_handler)
+    health_runner = web.AppRunner(health_app)
+    await health_runner.setup()
+    health_site = web.TCPSite(health_runner, settings.webapp_host, settings.webapp_port)
+    try:
+        await health_site.start()
+        logger.info("Health check server listening at http://%s:%s/health", settings.webapp_host, settings.webapp_port)
+    except Exception as e:
+        logger.warning("Could not start background health check server: %s", e)
+
     try:
         logger.info("Long polling started. Send a voice note in Telegram to practice! (100% Native Telegram)")
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot)
     finally:
+        try:
+            await health_runner.cleanup()
+        except Exception:
+            pass
         if reminder_task and not reminder_task.done():
             reminder_task.cancel()
             try:
