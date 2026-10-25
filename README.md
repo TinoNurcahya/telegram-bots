@@ -137,8 +137,8 @@ Ensure `.env` files are configured in both app folders, then run:
 docker compose up -d
 ```
 
-### Option D: 100% Free Cloud Deployment (Koyeb Nano Service)
-Panduan lengkap step-by-step deploy gratis ke cloud tanpa kartu kredit dan anti-tidur 24/7 tersedia di [apps/speaking-coach-bot/README.md](apps/speaking-coach-bot/README.md#1-️-free-cloud-deployment-koyeb--100-gratis-tanpa-kartu-kredit--anti-tidur).
+### Option D: 100% Free Cloud Deployment (Vercel Serverless)
+Panduan lengkap step-by-step deploy gratis ke cloud tanpa kartu kredit dan 24/7 online tersedia di [apps/speaking-coach-bot/README.md](apps/speaking-coach-bot/README.md#1-️-free-cloud-deployment-vercel-serverless--100-gratis-tanpa-kartu-kredit--selalu-online).
 
 ---
 

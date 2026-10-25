@@ -167,38 +167,47 @@ python -m unittest discover tests
 
 Aplikasi ini mendukung dua mode eksekusi (**Long Polling** & **Webhook HTTPS**) yang siap di-deploy secara gratis maupun ke server produksi:
 
-### 1. ☁️ Free Cloud Deployment (Koyeb – 100% Gratis, Tanpa Kartu Kredit & Anti-Tidur)
+### 1. ⚡ Free Cloud Deployment (Vercel Serverless – 100% Gratis, Tanpa Kartu Kredit & Selalu Online)
 
-Koyeb menyediakan **Free Nano Service** (512 MB RAM) yang aktif **24/7 non-stop tanpa jeda tidur (no cold start)**, sangat ideal untuk menjalankan bot Telegram secara permanen tanpa biaya.
+Vercel menyediakan **Serverless Function** global yang aktif **24/7 tanpa batas kapasitas**, sangat ideal untuk menjalankan bot Telegram secara permanen tanpa biaya dan tanpa kartu kredit.
 
-#### 🌟 Keunggulan Koyeb:
-- 🟢 **100% Gratis & Tanpa Kartu Kredit**: Pendaftaran instan cukup menggunakan akun GitHub.
-- 🟢 **Anti-Tidur (No Sleep / No Cold Start)**: Instance aktif terus-menerus 24/7, respon suara selalu cepat.
-- 🟢 **Setup Mode Polling Paling Simpel**: Tidak perlu repot menyewa domain atau menyetel sertifikat Webhook HTTPS.
+#### 🌟 Keunggulan Vercel + Neon.tech:
+- 🟢 **100% Gratis & Tanpa Kartu Kredit**: Cukup login menggunakan akun GitHub Anda.
+- 🟢 **Infrastruktur Skala Global**: Tidak pernah "out of capacity" atau server penuh.
+- 🟢 **Database Cloud Permanen**: Menggunakan PostgreSQL gratis dari **[Neon.tech](https://neon.tech)** sehingga streak, XP, dan riwayat belajar tersimpan aman selamanya.
+- 🟢 **Keamanan Berlapis**: Dilengkapi verifikasi token rahasia `X-Telegram-Bot-Api-Secret-Token`.
 
 #### 📋 Langkah-langkah Deployment:
-1. **Push ke GitHub**: Pastikan repository Anda telah di-push ke GitHub.
-2. **Buka Koyeb**: Kunjungi [koyeb.com](https://www.koyeb.com) dan login menggunakan akun GitHub Anda.
-3. **Buat App / Service Baru**:
-   - Klik **Create App** -> Pilih sumber **GitHub**.
-   - Pilih repository Anda (`telegram-bots`).
-   - Atur konfigurasi build berikut:
-     | Pengaturan | Nilai | Keterangan |
+
+1. **Siapkan Database PostgreSQL Gratis di Neon.tech (30 Detik)**:
+   - Buka [https://neon.tech](https://neon.tech) lalu login dengan GitHub (100% gratis, tanpa kartu kredit).
+   - Klik **Create Project** (beri nama misal `speaking-coach-db`).
+   - Copy string koneksi PostgreSQL yang diberikan (contoh: `postgresql://neondb_owner:pass@ep-cool-fog.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`).
+
+2. **Deploy ke Vercel**:
+   - Buka [https://vercel.com](https://vercel.com) dan login menggunakan akun GitHub Anda.
+   - Klik tombol **Add New...** -> **Project**.
+   - Pilih repository Anda: **`TinoNurcahya/telegram-bots`**.
+   - Pada bagian **Root Directory**, klik **Edit** lalu pilih atau ketik: **`apps/speaking-coach-bot`**.
+   - Pada bagian **Environment Variables**, tambahkan 4 variabel berikut:
+     | Key | Value | Keterangan |
      | :--- | :--- | :--- |
-     | **Work directory** | `apps/speaking-coach-bot` | Folder bot di dalam repository |
-     | **Builder** | `Dockerfile` | Otomatis mendeteksi Dockerfile bawaan |
-     | **Instance Type** | `Nano (Free)` | 512 MB RAM / 24/7 Gratis |
-4. **Environment Variables**:
-   Di tab **Environment variables**, tambahkan variabel kunci berikut:
-   ```env
-   BOT_TOKEN=your_telegram_bot_token_from_botfather
-   GEMINI_API_KEY=your_gemini_api_key_from_google_ai_studio
-   GEMINI_MODEL=gemini-2.0-flash
-   BOT_MODE=polling
-   DATABASE_PATH=speaking_coach.db
-   ```
-   *(Opsional: Jika ingin persistensi cloud antar-redeploy, hubungkan `DATABASE_URL` ke PostgreSQL gratis dari Neon.tech atau Supabase)*.
-5. **Deploy**: Klik tombol **Deploy**. Koyeb akan otomatis mem-build image Docker dan menjalankan bot dalam mode Polling 24/7 selamanya.
+     | `BOT_TOKEN` | `your_bot_token` | Token dari @BotFather |
+     | `GEMINI_API_KEY` | `your_gemini_key` | API Key dari Google AI Studio |
+     | `DATABASE_URL` | `postgresql://...` | Connection string dari Neon.tech di atas |
+     | `WEBHOOK_SECRET` | `rahasia_acak_32_karakter` | String acak untuk verifikasi webhook Telegram |
+   - Klik tombol **Deploy**. Vercel akan mem-build dan menerbitkan URL aplikasi Anda dalam ~30 detik (contoh: `https://speaking-coach-bot.vercel.app`).
+
+3. **Aktifkan Telegram Webhook**:
+   - Buka tab baru di browser Anda dan jalankan URL berikut (ganti `<TOKEN>`, `<VERCEL_URL>`, dan `<WEBHOOK_SECRET>`):
+     ```text
+     https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<VERCEL_URL>/api/index&secret_token=<WEBHOOK_SECRET>
+     ```
+   - Browser akan memunculkan respons JSON:
+     ```json
+     {"ok": true, "result": true, "description": "Webhook was set"}
+     ```
+   - **Selesai!** Bot Telegram Anda sekarang resmi aktif 24/7 di Vercel selamanya!
 
 ---
 
