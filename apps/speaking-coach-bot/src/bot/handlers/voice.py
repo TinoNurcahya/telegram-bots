@@ -74,15 +74,38 @@ async def handle_voice_message(
         )
         return
 
+    # Pre-flight quota verification (bypassed if answering an active IELTS Mock Exam)
+    if not active_ielts_session:
+        can_eval, used_today, max_limit = await user_service.check_daily_quota(user_id)
+        if not can_eval:
+            from src.bot.keyboards.menu import get_freemium_limit_keyboard
+            has_used_trial = bool(profile.get("has_used_trial", 0))
+            limit_text = (
+                f"⏳ **Batas Latihan Harian Tercapai ({max_limit}/{max_limit} Voice Notes Gratis)**\n\n"
+                f"Anda telah menggunakan {max_limit} evaluasi suara gratis Anda untuk hari ini!\n"
+                "Kuota gratis Anda akan otomatis di-reset besok pukul 07:00 WIB (00:00 UTC).\n\n"
+                "🌟 **Upgrade ke Speaking Coach Premium Pass:**\n"
+                "✨ Evaluasi voice note & respon suara AI tanpa batas\n"
+                "❄️ +3 Tiket Pelindung Streak (Streak Freeze)\n"
+                "⚡ +250 Bonus XP dan Badge Eksklusif Star Patron ⭐\n\n"
+                "Tingkatkan akun Anda sekarang dengan Telegram Stars (`XTR`) atau klaim Free Trial 7 Hari!"
+            )
+            await message.reply(
+                limit_text,
+                parse_mode="Markdown",
+                reply_markup=get_freemium_limit_keyboard(has_used_trial=has_used_trial),
+            )
+            return
+
     status_msg = await message.reply("🎧 *Analyzing your speech with Gemini AI...*", parse_mode="Markdown")
 
     try:
         file_id = voice.file_id
 
         # Download voice file directly into in-memory buffer
-        audio_buffer = io.BytesIO()
-        await bot.download(file_id, destination=audio_buffer)
-        audio_bytes = audio_buffer.getvalue()
+        with io.BytesIO() as audio_buffer:
+            await bot.download(file_id, destination=audio_buffer)
+            audio_bytes = audio_buffer.getvalue()
         mime_type = voice.mime_type or "audio/ogg"
 
         job_data = {

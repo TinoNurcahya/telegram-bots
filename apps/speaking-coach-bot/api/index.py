@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import sys
@@ -72,19 +73,22 @@ dp["voice_dispatcher"] = VoiceJobDispatcher(arq_pool=None)
 dp.update.middleware(UserTrackerMiddleware(user_service=user_service))
 register_handlers(dp)
 
+_init_lock = asyncio.Lock()
 _initialized = False
 
 
 async def ensure_db_initialized():
-    """Lazily initialize database schema on first invocation."""
+    """Lazily initialize database schema on first invocation safely with lock."""
     global _initialized
     if not _initialized:
-        try:
-            await db_conn.init_schema()
-            _initialized = True
-            logger.info("Database schema initialized successfully.")
-        except Exception as e:
-            logger.error("Failed to initialize database schema: %s", e)
+        async with _init_lock:
+            if not _initialized:
+                try:
+                    await db_conn.init_schema()
+                    _initialized = True
+                    logger.info("Database schema initialized successfully.")
+                except Exception as e:
+                    logger.error("Failed to initialize database schema: %s", e)
 
 
 @asynccontextmanager
@@ -151,6 +155,28 @@ async def telegram_webhook(request: Request):
         await dp.feed_update(bot=bot, update=update)
         return {"ok": True}
     except Exception as e:
-        logger.error("Error processing update: %s", e)
+        logger.error("Error processing update: %s", e, exc_info=True)
+        # Attempt to notify the user in Telegram chat to avoid silent drop
+        try:
+            chat_id = None
+            if isinstance(data, dict):
+                if "message" in data and isinstance(data["message"], dict):
+                    chat_id = data["message"].get("chat", {}).get("id")
+                elif "callback_query" in data and isinstance(data["callback_query"], dict):
+                    cb_msg = data["callback_query"].get("message")
+                    if isinstance(cb_msg, dict):
+                        chat_id = cb_msg.get("chat", {}).get("id")
+            if chat_id:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text=(
+                        "⚠️ **Kendala Teknis Sementara**\n\n"
+                        "Maaf, sistem mengalami kendala sesaat saat memproses permintaan Anda. "
+                        "Silakan coba kirim ulang beberapa saat lagi."
+                    ),
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+        except Exception as notify_err:
+            logger.warning("Could not send fallback error notification to chat: %s", notify_err)
         # Always return 200/ok to Telegram to prevent infinite retry loops
         return {"ok": True, "error": str(e)}

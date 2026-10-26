@@ -28,7 +28,7 @@ class PostgresCoachRepository(ICoachRepository):
             self._pool = await asyncpg.create_pool(
                 dsn=self.dsn,
                 min_size=1,
-                max_size=10,
+                max_size=3,
                 statement_cache_size=0,
             )
         return self._pool

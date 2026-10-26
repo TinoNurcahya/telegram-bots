@@ -99,41 +99,41 @@ async def execute_voice_job(
     active_phoneme_drill = job_data.get("active_phoneme_drill")
     active_tense_drill = job_data.get("active_tense_drill")
 
-    # 0. Freemium Daily Quota Check
-    profile = {}
-    if hasattr(user_service, "get_user_profile"):
-        try:
-            res = user_service.get_user_profile(user_id)
-            if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
-                profile = await res or {}
-            elif isinstance(res, dict):
-                profile = res
-        except Exception as e:
-            logger.warning("Could not fetch user profile in worker: %s", e)
-    can_eval, used_today, max_limit = await user_service.check_daily_quota(user_id)
-    if not can_eval:
-        from src.bot.keyboards.menu import get_freemium_limit_keyboard
-        has_used_trial = bool(profile.get("has_used_trial", 0))
-        limit_text = (
-            f"⏳ **Batas Latihan Harian Tercapai ({max_limit}/{max_limit} Voice Notes Gratis)**\n\n"
-            f"Anda telah menggunakan {max_limit} evaluasi gratis Anda untuk hari ini!\n"
-            "Kuota gratis Anda akan otomatis di-reset besok pukul 07:00 WIB (00:00 UTC).\n\n"
-            "🌟 **Upgrade ke Speaking Coach Premium Pass:**\n"
-            "✨ Evaluasi voice note & respon suara AI tanpa batas\n"
-            "🏛️ Akses penuh ujian resmi IELTS Mock Exam\n"
-            "❄️ +3 Tiket Pelindung Streak (Streak Freeze)\n"
-            "⚡ +250 Bonus XP dan Badge Eksklusif Star Patron ⭐\n\n"
-            "Tingkatkan akun Anda sekarang dengan Telegram Stars (`XTR`) atau klaim Free Trial 7 Hari!"
-        )
-        await safe_edit_message_text(
-            bot=bot,
-            chat_id=chat_id,
-            message_id=status_message_id,
-            text=limit_text,
-            parse_mode="Markdown",
-            reply_markup=get_freemium_limit_keyboard(has_used_trial=has_used_trial),
-        )
-        return {"status": "quota_exceeded"}
+    # 0. Freemium Daily Quota Check (bypassed if active IELTS Mock Exam)
+    if not active_ielts_session:
+        profile = {}
+        if hasattr(user_service, "get_user_profile"):
+            try:
+                res = user_service.get_user_profile(user_id)
+                if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
+                    profile = await res or {}
+                elif isinstance(res, dict):
+                    profile = res
+            except Exception as e:
+                logger.warning("Could not fetch user profile in worker: %s", e)
+        can_eval, used_today, max_limit = await user_service.check_daily_quota(user_id)
+        if not can_eval:
+            from src.bot.keyboards.menu import get_freemium_limit_keyboard
+            has_used_trial = bool(profile.get("has_used_trial", 0))
+            limit_text = (
+                f"⏳ **Batas Latihan Harian Tercapai ({max_limit}/{max_limit} Voice Notes Gratis)**\n\n"
+                f"Anda telah menggunakan {max_limit} evaluasi gratis Anda untuk hari ini!\n"
+                "Kuota gratis Anda akan otomatis di-reset besok pukul 07:00 WIB (00:00 UTC).\n\n"
+                "🌟 **Upgrade ke Speaking Coach Premium Pass:**\n"
+                "✨ Evaluasi voice note & respon suara AI tanpa batas\n"
+                "❄️ +3 Tiket Pelindung Streak (Streak Freeze)\n"
+                "⚡ +250 Bonus XP dan Badge Eksklusif Star Patron ⭐\n\n"
+                "Tingkatkan akun Anda sekarang dengan Telegram Stars (`XTR`) atau klaim Free Trial 7 Hari!"
+            )
+            await safe_edit_message_text(
+                bot=bot,
+                chat_id=chat_id,
+                message_id=status_message_id,
+                text=limit_text,
+                parse_mode="Markdown",
+                reply_markup=get_freemium_limit_keyboard(has_used_trial=has_used_trial),
+            )
+            return {"status": "quota_exceeded"}
 
     # -------------------------------------------------------------
     # Branch 0: Active IELTS Mock Exam Session
@@ -143,7 +143,6 @@ async def execute_voice_job(
             audio_bytes=audio_bytes,
             mime_type=mime_type,
         )
-        await user_service.record_daily_eval(user_id)
 
         step_idx = active_ielts_session.get("current_step", 0)
         questions = active_ielts_session.get("questions", [])

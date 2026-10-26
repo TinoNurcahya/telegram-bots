@@ -20,6 +20,11 @@ except ImportError:
             for k, v in kwargs.items():
                 setattr(self, k, v)
 
+    def model_validator(*args, **kwargs):
+        def decorator(fn):
+            return fn
+        return decorator
+
 try:
     from google import genai
     from google.genai import types

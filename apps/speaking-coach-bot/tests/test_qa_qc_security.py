@@ -484,6 +484,87 @@ class TestNativeProgressDashboard(unittest.IsolatedAsyncioTestCase):
         args, kwargs = message.edit_text.call_args
         self.assertIn("KARTU PROFIL & STATISTIK BELAJAR AI", kwargs.get("text"))
 
+    async def test_voice_preflight_quota_exhausted_rejects_before_download(self):
+        """Pre-flight check in voice.py must reject and NOT download audio if quota exhausted."""
+        user_id = 8881
+        await self.user_service.ensure_user(user_id, "exhausted_user", "Exhausted")
+        for _ in range(10):
+            await self.user_service.record_daily_eval(user_id)
+
+        bot = MagicMock()
+        bot.download = AsyncMock()
+        message = MagicMock()
+        message.from_user.id = user_id
+        message.voice.duration = 10
+        message.voice.file_size = 50000
+        message.voice.file_id = "test_file_id"
+        message.audio = None
+        message.reply = AsyncMock()
+
+        ai_coach = MagicMock()
+        tts = MagicMock()
+
+        await handle_voice_message(
+            message=message,
+            bot=bot,
+            user_service=self.user_service,
+            ai_coach_service=ai_coach,
+            tts_service=tts,
+        )
+
+        bot.download.assert_not_awaited()
+        message.reply.assert_awaited_once()
+        self.assertIn("Batas Latihan Harian Tercapai", message.reply.call_args[0][0])
+
+    async def test_voice_ielts_session_bypasses_quota_exhaustion(self):
+        """Active IELTS session allows voice note processing even when daily quota is exhausted."""
+        user_id = 8882
+        await self.user_service.ensure_user(user_id, "ielts_taker", "Candidate")
+        for _ in range(10):
+            await self.user_service.record_daily_eval(user_id)
+
+        # Set active IELTS exam
+        await self.user_service.start_ielts_exam(
+            telegram_id=user_id,
+            exam_type="express",
+            questions=[{"step_index": 0, "part": 1, "text": "Where do you live?"}],
+        )
+
+        bot = MagicMock()
+        bot.download = AsyncMock()
+        message = MagicMock()
+        message.chat.id = user_id
+        message.from_user.id = user_id
+        message.voice.duration = 15
+        message.voice.file_size = 50000
+        message.voice.file_id = "ielts_file_id"
+        message.voice.mime_type = "audio/ogg"
+        message.audio = None
+        status_msg = MagicMock()
+        status_msg.message_id = 123
+        message.reply = AsyncMock(return_value=status_msg)
+
+        ai_coach = MagicMock()
+        ai_coach.transcribe_voice_note = AsyncMock(return_value="I live in Jakarta.")
+        tts = MagicMock()
+        tts.synthesize_speech = AsyncMock(return_value=b"tts_audio")
+
+        dispatcher = MagicMock()
+        dispatcher.dispatch = AsyncMock()
+
+        await handle_voice_message(
+            message=message,
+            bot=bot,
+            user_service=self.user_service,
+            ai_coach_service=ai_coach,
+            tts_service=tts,
+            voice_dispatcher=dispatcher,
+        )
+
+        # bot.download MUST be called because quota check was bypassed for IELTS!
+        bot.download.assert_awaited_once()
+        dispatcher.dispatch.assert_awaited_once()
+
 
 if __name__ == "__main__":
     unittest.main()

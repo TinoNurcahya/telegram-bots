@@ -1,14 +1,9 @@
 Copyright (c) 2026 Tino Nurcahya. All rights reserved.
 
-This project and its code are proprietary and confidential. It is made available solely for portfolio demonstration and personal evaluation purposes. This project is strictly NOT intended for commercial use. Unauthorized copying, modification, distribution, commercial exploitation, or use of this file and its codebase via any medium is strictly prohibited.
+This repository and its codebase are proprietary and created solely for portfolio demonstration and personal evaluation purposes.
 
-telegram-bots/
-├── apps/
-│   ├── reminder-bot/
-│   ├── expense-bot/
-│   ├── job-alert-bot/
-│   └── speaking-bot/
-├── packages/
-│   └── shared/
-├── README.md
-└── package.json
+Permission is hereby granted to view, review, and evaluate the code for recruitment, educational assessment, and portfolio evaluation purposes.
+
+Unauthorized copying, distribution, sublicensing, commercial exploitation, or public deployment of this codebase or any part thereof, in source or binary forms, with or without modification, is strictly prohibited without prior written permission from the copyright holder.
+
+For inquiries or permissions, please contact: tinonurcahya.ti@gmail.com
