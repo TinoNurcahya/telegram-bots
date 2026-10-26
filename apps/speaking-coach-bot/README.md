@@ -1,6 +1,6 @@
 # AI English Speaking Coach Bot 🎙️
 
-An interactive, AI-powered English Speaking Coach Telegram Bot built with **Python 3.13**, **aiogram v3**, **Google Gemini 2.0 Multimodal Audio**, and **Neural Text-to-Speech (`edge-tts`)**, structured with enterprise **Clean Architecture**.
+An interactive, AI-powered English Speaking Coach Telegram Bot built with **Python 3.13**, **aiogram v3**, **Google Gemini 3.1 Flash-Lite Multimodal Audio**, and **Neural Text-to-Speech (`edge-tts`)**, structured with enterprise **Clean Architecture**.
 
 Learners simply hold down the Telegram microphone button (🎙️), speak in English, and receive:
 1. 📝 **Comprehensive Analysis**: Transcription, CEFR level, IELTS band estimation, grammar slip fixes, vocabulary upgrades, and pronunciation notes.
@@ -32,7 +32,7 @@ Learners simply hold down the Telegram microphone button (🎙️), speak in Eng
 - **🎙️ Customizable Voice Accents (`/voice`)**: Switch between US (Jenny/Guy) and UK (Sonia/Ryan) neural voices.
 - **🎯 Adaptive Difficulty Levels (`/level`)**: Beginner (A1-A2), Intermediate (B1-B2), Advanced (C1-C2).
 - **💡 Daily Topic Generator (`/topic`)**: Generates fresh conversation starters on demand.
-- **⚡ Asynchronous Queue-Worker (`arq` + Redis)**: Heavy Gemini 2.0 audio processing and TTS audio synthesis are offloaded to distributed background workers with automatic in-process fallback for local dev.
+- **⚡ Asynchronous Queue-Worker (`arq` + Redis)**: Heavy Gemini 3.1 audio processing and TTS audio synthesis are offloaded to distributed background workers with automatic in-process fallback for local dev.
 - **🐘 Dual-Database Architecture (PostgreSQL & SQLite)**: Seamlessly operates on embedded SQLite (`aiosqlite`) for local development, and scales to high-concurrency managed PostgreSQL (`asyncpg`) connection pooling in cloud environments.
 - **Enterprise Clean Architecture**: Strict decoupling of transport (`bot/`), distributed execution (`worker/`), domain business logic (`services/`), and data access (`repositories/`).
 
@@ -42,16 +42,19 @@ Learners simply hold down the Telegram microphone button (🎙️), speak in Eng
 
 ```
 speaking-coach-bot/
+├── api/
+│   └── index.py                      # ⚡ FastAPI Vercel Serverless Webhook Adapter
 ├── src/
 │   ├── bot/                          # Transport / Presentation Layer
 │   │   ├── handlers/
 │   │   │   ├── common.py             # /start, /scenario, /review, /voice, /level, /progress
 │   │   │   ├── ielts_mock.py         # /mock_ielts state machine & blind listening delivery
 │   │   │   ├── phonemes.py           # /phonemes catalog, drills, & on-demand audio
+│   │   │   ├── tenses.py             # /tenses active grammar & tense speaking gym
 │   │   │   ├── reminder.py           # /remind settings menu & custom time parsing
 │   │   │   └── voice.py              # Voice note receiver, audio analysis, & routing
 │   │   ├── middlewares/
-│   │   │   └── user_tracker.py       # Activity interceptor
+│   │   │   └── user_tracker.py       # Activity interceptor & auto registration
 │   │   └── keyboards/
 │   │       └── menu.py               # Menus, scenario, voice, level, IELTS, reminder, & phonemes
 │   │
@@ -60,7 +63,7 @@ speaking-coach-bot/
 │   │   └── dispatcher.py             # Hybrid VoiceJobDispatcher (Queue or In-process fallback)
 │   │
 │   ├── services/                     # Business Logic Layer (Pure Domain)
-│   │   ├── ai_coach_service.py       # Gemini 2.0 audio evaluation, IELTS packs, & minimal pairs
+│   │   ├── ai_coach_service.py       # Gemini 3.1 audio evaluation, IELTS packs, & minimal pairs
 │   │   ├── reminder_service.py       # Duolingo persona message bank & background worker loop
 │   │   ├── tts_service.py            # Neural Text-to-Speech (edge-tts)
 │   │   └── user_service.py           # User profiles, streaks, XP, & session states
@@ -71,13 +74,20 @@ speaking-coach-bot/
 │   │   ├── database.py               # SQLite schema initializer
 │   │   └── __init__.py               # create_coach_repository factory
 │   │
-│   ├── config.py                     # Pydantic environment validation (DATABASE_URL, REDIS_URL)
+│   ├── config.py                     # Pydantic environment validation & port bindings
 │   └── __init__.py
 │
-├── tests/                            # Unit & Integration Tests (100% PASS - 30 tests)
+├── tests/                            # Comprehensive Unit & Webhook Tests (100% PASS - 75 tests)
 │   ├── test_ai_coach_service.py      # Core Gemini audio & pedagogical modes tests
 │   ├── test_postgres_repository.py   # PostgreSQL repository & connection pool tests
-│   └── test_worker_queue.py          # Arq dispatcher & execution worker tests
+│   ├── test_worker_queue.py          # Arq dispatcher & execution worker tests
+│   ├── test_tenses_service.py        # Tenses speaking gym test suite
+│   ├── test_state_isolation.py       # Session & drill isolation tests
+│   ├── test_gamification_and_tma.py  # Streaks, badges, and XP tests
+│   ├── test_qa_qc_security.py        # Security & input sanitization tests
+│   └── test_vercel_webhook.py        # Vercel FastAPI webhook & secret token tests
+├── manage_webhook.py                 # 🛡️ CLI & Automated Webhook Failover Watchdog
+├── vercel.json                       # Vercel serverless rewrite rules
 ├── compose.yaml                      # Multi-container orchestration (App, Worker, Redis, Postgres)
 ├── Dockerfile                        # Production container build
 ├── requirements.txt
@@ -125,7 +135,7 @@ Edit `.env`:
 ```env
 BOT_TOKEN=your_telegram_bot_token
 GEMINI_API_KEY=AIzaSyYourGeminiApiKeyHere
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.1-flash-lite
 BOT_MODE=polling
 DATABASE_PATH=speaking_coach.db
 ```
@@ -167,47 +177,59 @@ python -m unittest discover tests
 
 Aplikasi ini mendukung dua mode eksekusi (**Long Polling** & **Webhook HTTPS**) yang siap di-deploy secara gratis maupun ke server produksi:
 
-### 1. ⚡ Free Cloud Deployment (Vercel Serverless – 100% Gratis, Tanpa Kartu Kredit & Selalu Online)
+### 1. ⚡ Free Cloud Deployment (Vercel Serverless + Neon PostgreSQL)
 
-Vercel menyediakan **Serverless Function** global yang aktif **24/7 tanpa batas kapasitas**, sangat ideal untuk menjalankan bot Telegram secara permanen tanpa biaya dan tanpa kartu kredit.
+Vercel menyediakan **Serverless Function** global yang aktif **24/7 tanpa batas kapasitas**, dipadukan dengan database cloud serverless dari **[Neon.tech](https://neon.tech)**. Kombinasi ini 100% gratis, tanpa kartu kredit, dan memastikan bot selalu online secara permanen.
 
 #### 🌟 Keunggulan Vercel + Neon.tech:
 - 🟢 **100% Gratis & Tanpa Kartu Kredit**: Cukup login menggunakan akun GitHub Anda.
-- 🟢 **Infrastruktur Skala Global**: Tidak pernah "out of capacity" atau server penuh.
-- 🟢 **Database Cloud Permanen**: Menggunakan PostgreSQL gratis dari **[Neon.tech](https://neon.tech)** sehingga streak, XP, dan riwayat belajar tersimpan aman selamanya.
-- 🟢 **Keamanan Berlapis**: Dilengkapi verifikasi token rahasia `X-Telegram-Bot-Api-Secret-Token`.
+- 🟢 **Serverless Uptime Global**: Tidak pernah "out of capacity" atau terhenti akibat server penuh.
+- 🟢 **Database Cloud Permanen**: PostgreSQL Neon.tech menyimpan streak, skor IELTS, riwayat review, dan XP selamanya secara persisten.
+- 🟢 **Keamanan Berlapis**: Validasi webhook menggunakan header rahasia `X-Telegram-Bot-Api-Secret-Token`.
 
 #### 📋 Langkah-langkah Deployment:
 
-1. **Siapkan Database PostgreSQL Gratis di Neon.tech (30 Detik)**:
+1. **Siapkan Database PostgreSQL di Neon.tech (30 Detik)**:
    - Buka [https://neon.tech](https://neon.tech) lalu login dengan GitHub (100% gratis, tanpa kartu kredit).
-   - Klik **Create Project** (beri nama misal `speaking-coach-db`).
-   - Copy string koneksi PostgreSQL yang diberikan (contoh: `postgresql://neondb_owner:pass@ep-cool-fog.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`).
+   - Klik **Create Project** (misal: `speaking-coach-db`).
+   - Salin connection string PostgreSQL. Disarankan memilih opsi **Connection Pooling** (mengandung `-pooler`):
+     ```text
+     postgresql://neondb_owner:PASSWORD@ep-xyz-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+     ```
 
 2. **Deploy ke Vercel**:
    - Buka [https://vercel.com](https://vercel.com) dan login menggunakan akun GitHub Anda.
-   - Klik tombol **Add New...** -> **Project**.
-   - Pilih repository Anda: **`TinoNurcahya/telegram-bots`**.
-   - Pada bagian **Root Directory**, klik **Edit** lalu pilih atau ketik: **`apps/speaking-coach-bot`**.
+   - Klik **Add New...** -> **Project**, lalu impor repository **`TinoNurcahya/telegram-bots`**.
+   - Pada bagian **Root Directory**, klik **Edit** lalu pilih: **`apps/speaking-coach-bot`**.
    - Pada bagian **Environment Variables**, tambahkan 4 variabel berikut:
      | Key | Value | Keterangan |
      | :--- | :--- | :--- |
-     | `BOT_TOKEN` | `your_bot_token` | Token dari @BotFather |
+     | `BOT_TOKEN` | `your_bot_token` | Token bot dari @BotFather |
      | `GEMINI_API_KEY` | `your_gemini_key` | API Key dari Google AI Studio |
-     | `DATABASE_URL` | `postgresql://...` | Connection string dari Neon.tech di atas |
-     | `WEBHOOK_SECRET` | `rahasia_acak_32_karakter` | String acak untuk verifikasi webhook Telegram |
-   - Klik tombol **Deploy**. Vercel akan mem-build dan menerbitkan URL aplikasi Anda dalam ~30 detik (contoh: `https://speaking-coach-bot.vercel.app`).
+     | `DATABASE_URL` | `postgresql://...` | Connection string Neon.tech (pooled) |
+     | `WEBHOOK_SECRET` | `your_secret_token` | String rahasia untuk verifikasi webhook Telegram |
+   - Klik **Deploy**. Vercel akan menerbitkan URL aplikasi Anda dalam ~30 detik (contoh: `https://speaking-coach-bot.vercel.app`).
 
 3. **Aktifkan Telegram Webhook**:
-   - Buka tab baru di browser Anda dan jalankan URL berikut (ganti `<TOKEN>`, `<VERCEL_URL>`, dan `<WEBHOOK_SECRET>`):
-     ```text
-     https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<VERCEL_URL>/api/index&secret_token=<WEBHOOK_SECRET>
+   - Buka browser atau jalankan perintah curl untuk mendaftarkan URL webhook ke Telegram:
+     ```bash
+     curl -F "url=https://<VERCEL_URL>/api/index" \
+          -F "secret_token=<WEBHOOK_SECRET>" \
+          https://api.telegram.org/bot<BOT_TOKEN>/setWebhook
      ```
-   - Browser akan memunculkan respons JSON:
+   - Respons sukses:
      ```json
      {"ok": true, "result": true, "description": "Webhook was set"}
      ```
-   - **Selesai!** Bot Telegram Anda sekarang resmi aktif 24/7 di Vercel selamanya!
+
+4. **(Opsional) Custom Domain & Failover Management**:
+   - Jika memiliki domain kustom (misal: `speaking-coach-bot.tinonurcahya.dev`), tambahkan di menu **Vercel Settings -> Domains**.
+   - Anda dapat memeriksa status atau mengganti target webhook secara instan menggunakan script bawaan:
+     ```bash
+     python manage_webhook.py --status
+     python manage_webhook.py --auto
+     ```
+   - Watchdog otomatis di [`.github/workflows/webhook-watchdog.yml`](../../.github/workflows/webhook-watchdog.yml) memantau domain secara berkala dan otomatis mengalihkan webhook ke domain fallback `vercel.app` jika domain utama tidak aktif.
 
 ---
 

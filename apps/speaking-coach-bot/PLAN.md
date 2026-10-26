@@ -1,7 +1,7 @@
 # 🎙️ Product Roadmap & Engineering Master Plan: AI Speaking Coach Bot
 
 **Project:** `apps/speaking-coach-bot`  
-**Current Status:** Production-Ready (All Phases 1–9 Completed)  
+**Current Status:** Production-Ready (All Phases 1–10 Completed)  
 **Contact:** `tinonurcahya.ti@gmail.com`  
 **Architecture:** Clean / Layered Architecture  
 
@@ -263,13 +263,22 @@ To bridge the gap between abstract grammar rules and spontaneous conversational 
   - Interactive Formula & Concept Card.
   - On-demand Native Audio sample demonstration via `edge-tts`.
   - Concrete conversational speaking trigger scenario.
-  - AI evaluation via Gemini 2.0 evaluating tense accuracy (0–100%), verb inflection, and auxiliary precision.
+  - AI evaluation via Gemini 3.1 Flash-Lite evaluating tense accuracy (0–100%), verb inflection, and auxiliary precision.
   - Conversational spoken reply and `+25 XP` with streak progress.
 * **100% Emoji UI Design**: Fully compliant zero-bullet styling for all in-chat cards and feedback messages.
 
+## 🚀 10. Phase 10: Vercel Serverless + Neon PostgreSQL Cloud Deployment (Completed)
+
+To achieve 100% free, 24/7 permanent cloud hosting with zero credit card requirements:
+* **Vercel Serverless Webhook Adapter**: FastAPI ASGI adapter at `api/index.py` with rewrite routing via `vercel.json` and strict `X-Telegram-Bot-Api-Secret-Token` validation.
+* **Neon.tech Cloud PostgreSQL**: Persistent relational storage (Singapore region) with connection pooling (`-pooler`) ensuring zero data loss and persistent user streaks/XP.
+* **Dual Domain Failover Strategy**: Primary production domain (`speaking-coach-bot.tinonurcahya.dev`) with automatic fallback to `speaking-coach-bot.vercel.app`.
+* **Automated Failover Watchdog & Keepalive**: Python CLI `manage_webhook.py` paired with GitHub Actions (`webhook-watchdog.yml`) scheduled every 6 hours and a 60-day auto-pause prevention script.
+* **Automated Regression Suite**: 75 comprehensive unit and integration tests passing with 0 failures.
+
 ---
 
-## 📋 10. Technical Debt & Quality Standards Registry
+## 📋 11. Technical Debt & Quality Standards Registry
 
 To preserve architectural integrity across all subsequent development cycles, engineers and agents must adhere to the following non-negotiables:
 
@@ -286,7 +295,7 @@ To preserve architectural integrity across all subsequent development cycles, en
 
 ---
 
-## 🗓️ 11. Milestone Timeline Summary
+## 🗓️ 12. Milestone Timeline Summary
 
 | Milestone | Target Scope | Target Deliverable | Status |
 | :--- | :--- | :--- | :--- |
@@ -297,6 +306,7 @@ To preserve architectural integrity across all subsequent development cycles, en
 | **Phase 5** | Monetization via Telegram Stars (XTR), Freemium Quota (10/day), Multi-Duration Invoices | In-chat native Stars payments, invoice & quota protection | 🟢 Completed |
 | **Phase 6** | Multi-Turn Dialogue Memory (Dual Redis/DB), Contextual Roleplay Icebreakers, `/reset`, Speed Settings | Stateful 10-turn rolling memory & seamless conversation flow | 🟢 Completed |
 | **Phase 7** | Referral System (`/invite`, `/referral`), Viral Growth Mechanics, Instant Rewards & Quota Boost | Deep-link invitation engine with 1-click sharing & freeze passes | 🟢 Completed |
-| **Phase 8** | Comprehensive QA/QC, Anti-Tamper, Financial Security & Boundary Hardening | 71/71 automated unit & integration test coverage | 🟢 Completed |
+| **Phase 8** | Comprehensive QA/QC, Anti-Tamper, Financial Security & Boundary Hardening | 75/75 automated unit & integration test coverage | 🟢 Completed |
 | **Phase 9** | English Tenses Speaking Gym (`/tenses`), 7-Tense Catalog, Audio Samples & AI Evaluation | Complete interactive tenses training flow inside Telegram | 🟢 Completed |
+| **Phase 10** | Vercel Serverless Adapter, Neon.tech PostgreSQL, Domain Failover Watchdog & Keepalive | 24/7 zero-cost cloud deployment with active webhook and auto-failover | 🟢 Completed |
 

@@ -1,6 +1,6 @@
 # 🤖 Telegram Bots Portfolio Showcase
 
-A curated monorepo showcasing production-grade, asynchronous Telegram bots built with **Python (`aiogram v3`)** and **TypeScript (`grammY`)**. 
+A curated monorepo showcasing production-grade, asynchronous Telegram bots built with **Python (`aiogram v3`)** and **TypeScript (`grammY`)**, deployed with modern cloud serverless and container architectures. 
 
 Designed with modular architectures, embedded SQLite persistence, and a hybrid execution engine (instant local Long Polling with seamless Webhook deployment).
 
@@ -12,46 +12,29 @@ This repository adopts a modular **`apps/`** monorepo pattern. Each bot project 
 
 ```
 telegram-bots/
+├── .github/
+│   └── workflows/
+│       └── webhook-watchdog.yml     # 🛡️ 24/7 Failover watchdog & 60-day keepalive
 ├── apps/
-│   ├── speaking-coach-bot/      # 🎙️ AI Speaking Coach (Python 3.13 + Gemini 2.0 Audio + aiogram v3)
-│   │   ├── src/
-│   │   │   ├── bot/             # Handlers (voice note receiver), middlewares, keyboards
-│   │   │   ├── services/        # Gemini multimodal audio evaluation & user progress
-│   │   │   ├── repositories/    # SQLite session history & user profiles
-│   │   │   └── config.py
-│   │   ├── tests/               # Unit tests (Mock AI & session tracking)
-│   │   ├── main.py
-│   │   ├── compose.yaml
-│   │   ├── Dockerfile
-│   │   └── README.md
-│   │
-│   ├── python-starter/          # Python 3.13 + aiogram v3 + aiosqlite (Clean Architecture)
-│   │   ├── src/
-│   │   │   ├── bot/             # Transport layer (handlers, middlewares, keyboards)
-│   │   │   ├── services/        # Domain business logic (pure & testable)
-│   │   │   ├── repositories/    # Data access layer (database & queries)
-│   │   │   └── config.py        # Pydantic settings & validation
-│   │   ├── tests/               # Unit & integration tests
-│   │   ├── main.py              # Polling & aiohttp Webhook runner
-│   │   ├── compose.yaml
-│   │   ├── Dockerfile
-│   │   └── README.md
-│   │
-│   └── ts-starter/              # TypeScript + grammY + Node 22 SQLite (Clean Architecture)
+│   └── speaking-coach-bot/          # 🎙️ AI Speaking Coach (Python 3.13 + Gemini 3.1 Flash-Lite Multimodal Audio)
+│       ├── api/
+│       │   └── index.py             # ⚡ FastAPI Vercel Serverless Webhook Adapter
 │       ├── src/
-│       │   ├── bot/             # Transport layer (handlers, middlewares, keyboards)
-│       │   ├── services/        # Domain business logic (pure & testable)
-│       │   ├── repositories/    # Data access layer (database & queries)
-│       │   └── config.ts        # Typed environment schema
-│       ├── tests/               # Unit & integration tests
-│       ├── index.ts             # Polling & Express Webhook runner
+│       │   ├── bot/                 # Handlers (voice notes, tenses, phonemes, IELTS, reminders)
+│       │   ├── services/            # Gemini audio analysis, TTS, user XP, streaks, dialogue FSM
+│       │   ├── repositories/        # Dual SQLite / Neon PostgreSQL repository factory
+│       │   └── config.py            # Pydantic environment validation & port bindings
+│       ├── tests/                   # 75/75 Comprehensive Unit & Webhook Tests
+│       ├── main.py                  # Local Polling & Docker Webhook runner
+│       ├── manage_webhook.py        # CLI for primary/fallback webhook management
+│       ├── vercel.json              # Vercel serverless rewrite rules
 │       ├── compose.yaml
 │       ├── Dockerfile
+│       ├── requirements.txt
+│       ├── .env.example
 │       └── README.md
-│
-├── compose.yaml                 # Multi-bot container orchestration
 ├── .gitignore
-├── LICENSE                      # Proprietary portfolio license
+├── LICENSE                          # Proprietary portfolio license
 └── README.md
 ```
 
@@ -61,9 +44,7 @@ telegram-bots/
 
 | Bot Project | Stack | Highlights | Status |
 | :--- | :--- | :--- | :--- |
-| **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 2.0 | Native `.ogg` audio ingestion, grammar analysis, pronunciation tips, conversation partner | 🟢 Active Showcase |
-| **[apps/python-starter](apps/python-starter)** | Python 3.13, `aiogram v3`, `aiosqlite` | Clean Architecture boilerplate, Pydantic settings, aiohttp webhooks | 🟢 Production Ready |
-| **[apps/ts-starter](apps/ts-starter)** | TypeScript, `grammY`, Node 22 `node:sqlite` | Clean Architecture boilerplate, zero external DB dependencies, Express webhooks | 🟢 Production Ready |
+| **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live** ([speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev)) |
 
 ---
 
@@ -74,19 +55,19 @@ telegram-bots/
   - **Production Deployment**: Switch to **Webhooks** simply by setting `BOT_MODE=webhook` and `WEBHOOK_URL` in `.env`.
 - **Zero-Config Database**: Embedded SQLite tracking registered users, message frequencies, first-seen timestamps, and activity analytics.
 - **Interactive UI**: Inline button menus with dynamic callbacks and real-time latency ping diagnostics.
-- **Docker Ready**: Individual Dockerfiles and a root `docker-compose.yml` to spin up any or all bots with one command.
+- **Docker Ready**: Individual Dockerfiles and modular Docker Compose services configured per application.
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### Step 1: Clone & Choose an App
+### Step 1: Clone Repository
 ```bash
 git clone https://github.com/TinoNurcahya/telegram-bots.git
 cd telegram-bots
 ```
 
-### Option A: Run the AI Speaking Coach Bot (Python)
+### Option A: Run the AI Speaking Coach Bot (Local Python venv)
 
 > [!IMPORTANT]
 > **Virtual Environment (`venv`) WAJIB DIGUNAKAN:**
@@ -116,35 +97,27 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Option B: Run the TypeScript Bot
+### Option B: Run via Docker Compose
+Jalankan bot beserta stack dependensinya menggunakan Docker Compose langsung dari foldernya:
 ```bash
-cd apps/ts-starter
-
-# Install dependencies
-npm install                    # Or cmd /c npm install on restricted Windows shells
-
-# Configure token
-cp .env.example .env
-# Edit BOT_TOKEN in .env
-
-# Run bot (development with hot-reload)
-npm run dev
-```
-
-### Option C: Run via Docker Compose
-Ensure `.env` files are configured in both app folders, then run:
-```bash
+cd apps/speaking-coach-bot
 docker compose up -d
 ```
 
-### Option D: 100% Free Cloud Deployment (Vercel Serverless)
-Panduan lengkap step-by-step deploy gratis ke cloud tanpa kartu kredit dan 24/7 online tersedia di [apps/speaking-coach-bot/README.md](apps/speaking-coach-bot/README.md#1-️-free-cloud-deployment-vercel-serverless--100-gratis-tanpa-kartu-kredit--selalu-online).
+### Option C: 100% Free Production Cloud Deployment (Vercel + Neon PostgreSQL)
+Speaking Coach AI Bot beroperasi 24/7 di infrastruktur cloud serverless tanpa biaya dan tanpa kartu kredit:
+- 🌐 **Primary Production Domain**: [https://speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev)
+- 🛡️ **Fallback Production Domain**: [https://speaking-coach-bot.vercel.app](https://speaking-coach-bot.vercel.app)
+- 🐘 **Managed Database**: [Neon.tech](https://neon.tech) Serverless PostgreSQL (Singapore Region, pooling enabled)
+- 🔄 **Automated Failover Watchdog**: [`.github/workflows/webhook-watchdog.yml`](.github/workflows/webhook-watchdog.yml) memantau domain setiap 6 jam dan otomatis mengalihkan webhook Telegram ke `vercel.app` jika domain dev mengalami kendala.
+
+Panduan lengkap langkah-langkah deployment tersedia di [apps/speaking-coach-bot/README.md](apps/speaking-coach-bot/README.md#1-️-free-cloud-deployment-vercel-serverless--neon-postgresql).
 
 ---
 
 ## 🎮 Standard Command Reference
 
-Both starter bots implement consistent core commands:
+Core commands implemented in the bot suite:
 
 | Command | Action |
 | :--- | :--- |
