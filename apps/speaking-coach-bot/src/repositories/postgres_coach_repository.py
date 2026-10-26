@@ -25,7 +25,12 @@ class PostgresCoachRepository(ICoachRepository):
         if self._pool is None:
             if not asyncpg:
                 raise RuntimeError("asyncpg is not installed. Please install asyncpg>=0.30.0")
-            self._pool = await asyncpg.create_pool(dsn=self.dsn, min_size=1, max_size=10)
+            self._pool = await asyncpg.create_pool(
+                dsn=self.dsn,
+                min_size=1,
+                max_size=10,
+                statement_cache_size=0,
+            )
         return self._pool
 
     async def close(self) -> None:
@@ -59,15 +64,22 @@ class PostgresCoachRepository(ICoachRepository):
                     total_xp INTEGER DEFAULT 0,
                     active_shadow_target TEXT DEFAULT '',
                     active_phoneme_target TEXT DEFAULT '',
+                    active_tense_drill TEXT DEFAULT '',
                     reminder_time TEXT DEFAULT '20:00',
                     reminder_enabled INTEGER DEFAULT 1,
                     reminder_timezone TEXT DEFAULT 'Asia/Jakarta',
                     last_reminded_date TEXT DEFAULT '',
                     streak_freeze_count INTEGER DEFAULT 1,
                     is_premium INTEGER DEFAULT 0,
+                    premium_until TEXT DEFAULT '',
+                    premium_tier TEXT DEFAULT '',
+                    has_used_trial INTEGER DEFAULT 0,
                     daily_eval_count INTEGER DEFAULT 0,
                     daily_eval_date TEXT DEFAULT '',
                     badges_json TEXT DEFAULT '[]',
+                    tts_speed TEXT DEFAULT '+0%',
+                    bonus_quota INTEGER DEFAULT 0,
+                    invited_by BIGINT DEFAULT 0,
                     created_at TEXT,
                     last_active TEXT
                 );
@@ -175,6 +187,67 @@ class PostgresCoachRepository(ICoachRepository):
                 """
             )
 
+            # Multi-turn Dialogue turns
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS dialogue_turns (
+                    id BIGSERIAL PRIMARY KEY,
+                    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id),
+                    scenario TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+
+            # Referrals and viral growth
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS referrals (
+                    id BIGSERIAL PRIMARY KEY,
+                    inviter_id BIGINT NOT NULL,
+                    invitee_id BIGINT NOT NULL UNIQUE,
+                    reward_claimed INTEGER DEFAULT 1,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+
+            # Tense exercises
+            await conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tense_exercises (
+                    id BIGSERIAL PRIMARY KEY,
+                    telegram_id BIGINT NOT NULL REFERENCES users(telegram_id),
+                    tense_id TEXT NOT NULL,
+                    tense_title TEXT NOT NULL,
+                    user_transcript TEXT NOT NULL,
+                    accuracy_score INTEGER NOT NULL,
+                    is_target_tense_used INTEGER NOT NULL,
+                    verb_form_analysis TEXT DEFAULT '',
+                    coaching_tip TEXT DEFAULT '',
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+
+            # Column migrations for existing tables
+            cols = [
+                ("active_tense_drill", "TEXT DEFAULT ''"),
+                ("tts_speed", "TEXT DEFAULT '+0%'"),
+                ("premium_until", "TEXT DEFAULT ''"),
+                ("premium_tier", "TEXT DEFAULT ''"),
+                ("has_used_trial", "INTEGER DEFAULT 0"),
+                ("bonus_quota", "INTEGER DEFAULT 0"),
+                ("invited_by", "BIGINT DEFAULT 0"),
+            ]
+            for col, col_type in cols:
+                try:
+                    await conn.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {col_type};")
+                except Exception:
+                    pass
+
             # Indexes
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_sessions_user ON practice_sessions(telegram_id);")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_vocab_user ON vocab_bank(telegram_id);")
@@ -182,6 +255,9 @@ class PostgresCoachRepository(ICoachRepository):
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_ielts_sessions_user ON ielts_mock_sessions(telegram_id);")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_ielts_results_user ON ielts_mock_results(telegram_id);")
             await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_phoneme_user ON phoneme_drills(telegram_id);")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_dialogue_user_scenario ON dialogue_turns(telegram_id, scenario);")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_referrals_inviter ON referrals(inviter_id);")
+            await conn.execute("CREATE INDEX IF NOT EXISTS idx_pg_tenses_user ON tense_exercises(telegram_id);")
 
         logger.info("PostgreSQL Speaking Coach schema and indexes initialized.")
 
