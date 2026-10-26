@@ -1,0 +1,26 @@
+name: Telegram Webhook Failover Watchdog
+
+on:
+  schedule:
+    # Run every 6 hours automatically (100% free on GitHub Actions)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI anytime
+
+jobs:
+  check-and-failover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Webhook Failover Watchdog
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET || 'tinoCoachSecret2026' }}
+        run: |
+          python apps/speaking-coach-bot/manage_webhook.py --auto
