@@ -1,5 +1,12 @@
 # AI English Speaking Coach Bot 🎙️
 
+[![Telegram Bot](https://img.shields.io/badge/Telegram_Bot-@MyEnglishCoach2000__bot-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/MyEnglishCoach2000_bot)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel_Serverless-Live-black?style=for-the-badge&logo=vercel)](https://speaking-coach-bot.tinonurcahya.dev/api/index)
+[![Tests Passing](https://img.shields.io/badge/Tests-77%2F77_Passing-brightgreen?style=for-the-badge)](tests/)
+
+> 🤖 **Coba Langsung di Telegram:** [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)  
+> 🌐 **Live Webhook Endpoint:** [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev/api/index)
+
 An interactive, AI-powered English Speaking Coach Telegram Bot built with **Python 3.13**, **aiogram v3**, **Google Gemini 3.1 Flash-Lite Multimodal Audio**, and **Neural Text-to-Speech (`edge-tts`)**, structured with enterprise **Clean Architecture**.
 
 Learners simply hold down the Telegram microphone button (🎙️), speak in English, and receive:

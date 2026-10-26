@@ -24,7 +24,7 @@ telegram-bots/
 │       │   ├── services/            # Gemini audio analysis, TTS, user XP, streaks, dialogue FSM
 │       │   ├── repositories/        # Dual SQLite / Neon PostgreSQL repository factory
 │       │   └── config.py            # Pydantic environment validation & port bindings
-│       ├── tests/                   # 75/75 Comprehensive Unit & Webhook Tests
+│       ├── tests/                   # 77/77 Comprehensive Unit & Webhook Tests
 │       ├── main.py                  # Local Polling & Docker Webhook runner
 │       ├── manage_webhook.py        # CLI for primary/fallback webhook management
 │       ├── vercel.json              # Vercel serverless rewrite rules
@@ -36,17 +36,17 @@ telegram-bots/
 ├── .gitignore
 ├── LICENSE                          # Proprietary portfolio license
 └── README.md
-```
-
----
-
-## 📦 Showcase Catalog
-
-| Bot Project | Stack | Highlights | Status |
-| :--- | :--- | :--- | :--- |
-| **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live** ([speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev)) |
-
----
+39: ```
+40: 
+41: ---
+42: 
+43: ## 📦 Showcase Catalog
+44: 
+45: | Bot Project | Stack | Highlights | Status & Live Bot |
+46: | :--- | :--- | :--- | :--- |
+47: | **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
+48: 
+49: ---
 
 ## ⚡ Core Features
 
