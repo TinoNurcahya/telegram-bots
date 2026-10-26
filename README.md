@@ -36,17 +36,17 @@ telegram-bots/
 ├── .gitignore
 ├── LICENSE                          # Proprietary portfolio license
 └── README.md
-39: ```
-40: 
-41: ---
-42: 
-43: ## 📦 Showcase Catalog
-44: 
-45: | Bot Project | Stack | Highlights | Status & Live Bot |
-46: | :--- | :--- | :--- | :--- |
-47: | **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
-48: 
-49: ---
+```
+
+---
+
+## 📦 Showcase Catalog
+
+| Bot Project | Stack | Highlights | Status & Live Bot |
+| :--- | :--- | :--- | :--- |
+| **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
+
+---
 
 ## ⚡ Core Features
 
