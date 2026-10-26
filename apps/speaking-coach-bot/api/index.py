@@ -109,18 +109,10 @@ app = FastAPI(
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
-    """Root info endpoint."""
-    return {
-        "status": "online",
-        "service": "English Speaking Coach AI",
-        "runtime": "Vercel Serverless",
-    }
-
-
 @app.get("/health")
+@app.get("/api/index")
 async def health_check() -> Dict[str, Any]:
-    """Health check endpoint for Vercel and uptime monitoring."""
+    """Health check endpoint for Vercel, browser, and uptime monitoring."""
     return {
         "status": "ok",
         "service": "SpeakingCoachBot",
@@ -129,6 +121,7 @@ async def health_check() -> Dict[str, Any]:
     }
 
 
+@app.post("/")
 @app.post("/api/index")
 @app.post("/webhook")
 async def telegram_webhook(request: Request):

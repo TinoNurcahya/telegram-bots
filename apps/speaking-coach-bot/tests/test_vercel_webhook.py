@@ -25,8 +25,8 @@ class TestVercelWebhookServerless(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data.get("status"), "online")
-        self.assertEqual(data.get("runtime"), "Vercel Serverless")
+        self.assertEqual(data.get("status"), "ok")
+        self.assertEqual(data.get("service"), "SpeakingCoachBot")
 
     def test_webhook_secret_token_enforcement(self):
         """Verify unauthorized requests are rejected when webhook_secret is configured."""
