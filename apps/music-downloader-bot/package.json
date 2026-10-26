@@ -1,0 +1,38 @@
+{
+  "name": "music-downloader-bot",
+  "version": "1.0.0",
+  "description": "High-performance Telegram Music Discovery & Audio Downloader Bot built with TypeScript, grammY, and Vercel Serverless.",
+  "main": "dist/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "telegram-bot",
+    "music-downloader",
+    "grammy",
+    "typescript",
+    "lyrics-finder",
+    "audio-stream",
+    "vercel-serverless"
+  ],
+  "author": "Tino Nurcahya",
+  "license": "SEE LICENSE IN ROOT",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.35.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^22.13.5",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}
