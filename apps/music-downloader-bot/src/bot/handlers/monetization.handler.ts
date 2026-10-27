@@ -1,6 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
 import { UserService, PLANS, BOOST_PLANS } from '../../services/user.service.js';
 import { buildUpgradeKeyboard } from '../keyboards/monetization.keyboard.js';
+import { escapeMarkdown } from '../../utils/markdown.js';
 
 export function registerMonetizationHandlers(bot: any, userService: UserService): void {
   // 1. /upgrade & /premium commands
@@ -66,7 +67,7 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
       `👤 PROFIL & STATISTIK PENGGUNA\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🆔 Telegram ID: \`${userId}\`\n` +
-      `👤 Nama: ${profile.firstName || 'Pengguna'}\n` +
+      `👤 Nama: ${escapeMarkdown(profile.firstName || 'Pengguna')}\n` +
       `🎖️ Status: ${statusBadge}\n` +
       `📥 Total Lagu Diunduh: ${profile.totalDownloads} lagu\n` +
       `📊 Sisa Kuota Siklus Ini: ${quotaLabel}\n` +

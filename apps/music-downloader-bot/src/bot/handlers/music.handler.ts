@@ -1,4 +1,4 @@
-import { Context, InputFile } from 'grammy';
+import { Context, InputFile, InlineKeyboard } from 'grammy';
 import { MusicService } from '../../services/music.service.js';
 import { LyricsService } from '../../services/lyrics.service.js';
 import { UserService } from '../../services/user.service.js';
@@ -395,16 +395,26 @@ export function registerMusicHandlers(
         cachedFileId = await userService.getAudioCache(track.id, quality);
       }
 
+      const botUsernameEscaped = ctx.me?.username ? escapeMarkdown(ctx.me.username) : 'Musicdownloader2001\\_bot';
+
       if (cachedFileId) {
         try {
           const note = quality === '320'
-            ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*\n🤖 Diunduh via @Musicdownloader2001_bot`
-            : `\n\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @Musicdownloader2001_bot`;
+            ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*\n🤖 Diunduh via @${botUsernameEscaped}`
+            : `\n\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
 
-          await ctx.replyWithAudio(cachedFileId, {
-            caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
-            parse_mode: 'Markdown',
-          });
+          try {
+            await ctx.replyWithAudio(cachedFileId, {
+              caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
+              parse_mode: 'Markdown',
+            });
+          } catch (_) {
+            // Fallback for files cached as Telegram documents
+            await ctx.replyWithDocument(cachedFileId, {
+              caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
+              parse_mode: 'Markdown',
+            });
+          }
 
           if (userService) {
             await userService.recordDownload(userId);
@@ -436,18 +446,28 @@ export function registerMusicHandlers(
 
         let qualityCaption = '';
         if (quality === '320') {
-          qualityCaption = `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @Musicdownloader2001_bot`;
+          qualityCaption = `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @${botUsernameEscaped}`;
         } else {
-          qualityCaption = `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @Musicdownloader2001_bot`;
+          qualityCaption = `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
         }
 
         const note = isPreview
-          ? '\n\n*(Tersedia format preview resmi 30s)*\n🤖 Didengarkan via @Musicdownloader2001_bot'
+          ? `\n\n*(Tersedia format preview resmi 30s)*\n🤖 Didengarkan via @${botUsernameEscaped}`
           : qualityCaption;
+
+        let thumbnailInput: InputFile | undefined = undefined;
+        if (track.coverUrl && track.coverUrl.startsWith('http')) {
+          try {
+            thumbnailInput = new InputFile(new URL(track.coverUrl));
+          } catch (_) {
+            thumbnailInput = undefined;
+          }
+        }
+
         const sentAudio = await ctx.replyWithAudio(finalUrl, {
           title: track.title,
           performer: track.artist,
-          thumbnail: track.coverUrl ? new InputFile(new URL(track.coverUrl)) : undefined,
+          thumbnail: thumbnailInput,
           caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
           parse_mode: 'Markdown',
         });
@@ -455,9 +475,10 @@ export function registerMusicHandlers(
         if (userService) {
           await userService.recordDownload(userId);
 
-          // Save newly generated Telegram file_id to cache for instant future deliveries
-          if (!isPreview && sentAudio?.audio?.file_id) {
-            await userService.saveAudioCache(track.id, quality, sentAudio.audio.file_id);
+          // Save newly generated Telegram file_id to cache (supports both audio and document messages)
+          const fileId = sentAudio?.audio?.file_id || (sentAudio as any)?.document?.file_id;
+          if (!isPreview && fileId) {
+            await userService.saveAudioCache(track.id, quality, fileId);
           }
         }
 
@@ -467,10 +488,15 @@ export function registerMusicHandlers(
         } catch (_) {}
       } catch (err) {
         console.error('Audio stream delivery error:', err);
+        const failKeyboard = track.previewUrl
+          ? new InlineKeyboard().text('🎧 Putar Preview (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
+          : undefined;
+
         await ctx.api.editMessageText(
           ctx.chat!.id,
           downloadNotice.message_id,
-          '⚠️ Gagal mengalirkan audio ke Telegram. Silakan coba kembali atau gunakan tombol Preview.'
+          '⚠️ Gagal mengalirkan audio lagu penuh ke Telegram. Link CDN mungkin mengalami kendala jaringan atau pembatasan sementara. Anda dapat mencoba mendengarkan cuplikan pratinjau audio 30 detik di bawah ini:',
+          { reply_markup: failKeyboard }
         );
       }
       return;
@@ -485,12 +511,22 @@ export function registerMusicHandlers(
 
       const safeTitle = escapeMarkdown(track.title);
       const safeArtist = escapeMarkdown(track.artist);
+      const botUsernameEscaped = ctx.me?.username ? escapeMarkdown(ctx.me.username) : 'Musicdownloader2001\\_bot';
+
+      let thumbnailInput: InputFile | undefined = undefined;
+      if (track.coverUrl && track.coverUrl.startsWith('http')) {
+        try {
+          thumbnailInput = new InputFile(new URL(track.coverUrl));
+        } catch (_) {
+          thumbnailInput = undefined;
+        }
+      }
 
       await ctx.replyWithAudio(track.previewUrl, {
         title: `${track.title} (Official Preview)`,
         performer: track.artist,
-        thumbnail: track.coverUrl ? new InputFile(new URL(track.coverUrl)) : undefined,
-        caption: `🎧 *Preview Resmi (30 Detik)*\n🎵 *${safeTitle}* — ${safeArtist}\n\n🤖 Didengarkan via @Musicdownloader2001_bot`,
+        thumbnail: thumbnailInput,
+        caption: `🎧 *Preview Resmi (30 Detik)*\n🎵 *${safeTitle}* — ${safeArtist}\n\n🤖 Didengarkan via @${botUsernameEscaped}`,
         parse_mode: 'Markdown',
       });
       return;

@@ -81,7 +81,7 @@ export class LyricsService {
       return `🎶 *${safeTitle}* — ${safeArtist}\n\n*(Lagu ini adalah karya instrumental tanpa lirik vokal)*`;
     }
 
-    const text = lyrics.plainLyrics || 'Lirik teks tidak ditemukan.';
+    const text = escapeMarkdown(lyrics.plainLyrics || 'Lirik teks tidak ditemukan.');
     const header = `📜 *Lirik Lagu: ${safeTitle}*\n🎙️ *Artis:* ${safeArtist}\n━━━━━━━━━━━━━━━━━━━━\n\n`;
 
     // Telegram message limit is 4096 characters
