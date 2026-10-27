@@ -49,32 +49,14 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
     await ctx.reply(res.message);
   });
 
-  // 3. /profile command
+  // 3. /profile command & profile button callback
   bot.command('profile', async (ctx: Context) => {
-    const userId = ctx.from?.id || 0;
-    const profile = await userService.getUserProfile(userId);
-    const quota = await userService.checkDailyQuota(userId);
+    await sendUserProfile(ctx, userService);
+  });
 
-    const statusBadge = profile.isPremium
-      ? `⭐ Premium (${profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`})`
-      : '🆓 Akun Gratis (Freemium)';
-
-    const quotaLabel = profile.isPremium
-      ? `${quota.usedToday} / ${quota.maxLimit} lagu (Siklus 12 Jam, Reset 07:00 & 19:00 WIB)`
-      : `${quota.usedToday} / ${quota.maxLimit} lagu hari ini (Reset 07:00 WIB)`;
-
-    const profileCard =
-      `👤 PROFIL & STATISTIK PENGGUNA\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `🆔 Telegram ID: \`${userId}\`\n` +
-      `👤 Nama: ${escapeMarkdown(profile.firstName || 'Pengguna')}\n` +
-      `🎖️ Status: ${statusBadge}\n` +
-      `📥 Total Lagu Diunduh: ${profile.totalDownloads} lagu\n` +
-      `📊 Sisa Kuota Siklus Ini: ${quotaLabel}\n` +
-      `🎁 Bonus Kuota Tambahan: +${profile.bonusQuota} lagu\n\n` +
-      `Gunakan /invite untuk menambah kuota gratis atau /upgrade untuk akses VIP!`;
-
-    await ctx.reply(profileCard, { parse_mode: 'Markdown' });
+  bot.callbackQuery('show_profile', async (ctx: Context) => {
+    await ctx.answerCallbackQuery();
+    await sendUserProfile(ctx, userService);
   });
 
   // 4. /invite command
@@ -291,4 +273,37 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
 
     await ctx.reply(celebration);
   });
+}
+
+/**
+ * Common handler to build and send user profile card.
+ */
+async function sendUserProfile(ctx: Context, userService: UserService): Promise<void> {
+  const userId = ctx.from?.id || 0;
+  if (ctx.from) {
+    await userService.ensureUser(userId, ctx.from.username, ctx.from.first_name);
+  }
+  const profile = await userService.getUserProfile(userId);
+  const quota = await userService.checkDailyQuota(userId);
+
+  const statusBadge = profile.isPremium
+    ? `⭐ Premium (${profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`})`
+    : '🆓 Akun Gratis (Freemium)';
+
+  const quotaLabel = profile.isPremium
+    ? `${quota.usedToday} / ${quota.maxLimit} lagu (Siklus 12 Jam, Reset 07:00 & 19:00 WIB)`
+    : `${quota.usedToday} / ${quota.maxLimit} lagu hari ini (Reset 07:00 WIB)`;
+
+  const profileCard =
+    `👤 PROFIL & STATISTIK PENGGUNA\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🆔 Telegram ID: \`${userId}\`\n` +
+    `👤 Nama: ${escapeMarkdown(profile.firstName || 'Pengguna')}\n` +
+    `🎖️ Status: ${statusBadge}\n` +
+    `📥 Total Lagu Diunduh: ${profile.totalDownloads} lagu\n` +
+    `📊 Sisa Kuota Siklus Ini: ${quotaLabel}\n` +
+    `🎁 Bonus Kuota Tambahan: +${profile.bonusQuota} lagu\n\n` +
+    `Gunakan /invite untuk menambah kuota gratis atau /upgrade untuk akses VIP!`;
+
+  await ctx.reply(profileCard, { parse_mode: 'Markdown' });
 }

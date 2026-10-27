@@ -183,8 +183,8 @@ export function registerMusicHandlers(
     }
 
     // Chart Category Selected (Global or Indonesia)
-    if (data.startsWith('chart:cat:')) {
-      const category = data.replace('chart:cat:', '') as 'global' | 'indonesia';
+    if (data === 'charts_cat_global' || data.startsWith('chart:cat:')) {
+      const category = (data === 'charts_cat_global' ? 'global' : data.replace('chart:cat:', '')) as 'global' | 'indonesia';
       const categoryTitle = category === 'global' ? '🌍 GLOBAL TOP 10 HITS' : '🇮🇩 INDONESIA TOP 10 VIRAL';
 
       try {
@@ -565,10 +565,10 @@ export function registerMusicHandlers(
   });
 
   // 6. Generic text search (when user types song title directly without /song)
-  bot.on('message:text', async (ctx: Context) => {
+  bot.on('message:text', async (ctx: Context, next: any) => {
     const text = ctx.message?.text?.trim() || '';
     if (text.startsWith('/')) {
-      return; // Ignore unhandled slash commands
+      return next(); // Pass through to command handlers
     }
     await handleSongSearch(ctx, text, musicService);
   });

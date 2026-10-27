@@ -136,5 +136,49 @@ describe('Monetization Keyboards & Anti-Tamper Tests', () => {
     const secondDelivery = await service.recordPayment(chargeId, userId, payload, 10);
     expect(secondDelivery).toBe(false);
   });
+
+  it('should handle /profile command without being blocked by generic message:text handler', async () => {
+    const { createBot } = await import('../src/bot/bot.js');
+    const { MemoryUserRepository } = await import('../src/repositories/user.repository.js');
+    const repo = new MemoryUserRepository();
+    const { bot } = createBot('000000000:dummy_token', repo);
+
+    let sentText = '';
+    bot.api.config.use(async (prev, method, payload, signal) => {
+      if (method === 'sendMessage') {
+        sentText = (payload as any).text;
+        return { ok: true, result: { message_id: 1, chat: { id: 1 }, date: 1 } } as any;
+      }
+      return prev(method, payload, signal);
+    });
+
+    bot.botInfo = {
+      id: 1,
+      is_bot: true,
+      first_name: 'TestBot',
+      username: 'test_bot',
+      can_join_groups: true,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+      can_connect_to_business: false,
+      has_main_web_app: false,
+    };
+
+    await bot.handleUpdate({
+      update_id: 101,
+      message: {
+        message_id: 201,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: 777, type: 'private' },
+        from: { id: 777, is_bot: false, first_name: 'Alex' },
+        text: '/profile',
+        entities: [{ type: 'bot_command', offset: 0, length: 8 }],
+      },
+    });
+
+    expect(sentText).toContain('PROFIL & STATISTIK PENGGUNA');
+    expect(sentText).toContain('777');
+    expect(sentText).toContain('Alex');
+  });
 });
 
