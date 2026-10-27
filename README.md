@@ -16,6 +16,13 @@ telegram-bots/
 │   └── workflows/
 │       └── webhook-watchdog.yml     # 🛡️ 24/7 Failover watchdog & 60-day keepalive
 ├── apps/
+│   ├── music-downloader-bot/        # 🎵 Music Discovery & Audio Downloader (TypeScript + Node 22 + grammY)
+│   │   ├── api/index.ts             # ⚡ Vercel Serverless Webhook Adapter
+│   │   ├── src/                     # Handlers, Deezer/iTunes/Saavn stream resolver, LRCLIB lyrics, UserService
+│   │   ├── tests/                   # 45/45 Vitest Unit & Webhook Tests
+│   │   ├── package.json
+│   │   ├── PLAN.md                  # Comprehensive 10-Phase Roadmap
+│   │   └── vercel.json
 │   └── speaking-coach-bot/          # 🎙️ AI Speaking Coach (Python 3.13 + Gemini 3.1 Flash-Lite Multimodal Audio)
 │       ├── api/
 │       │   └── index.py             # ⚡ FastAPI Vercel Serverless Webhook Adapter
@@ -45,6 +52,7 @@ telegram-bots/
 | Bot Project | Stack | Highlights | Status & Live Bot |
 | :--- | :--- | :--- | :--- |
 | **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
+| **[apps/music-downloader-bot](apps/music-downloader-bot)** | TypeScript, Node.js 22, `grammY`, Deezer API, iTunes API, LRCLIB API, Neon PostgreSQL, Vercel Serverless | Instant song search, Top Charts (`/charts`), direct Telegram audio delivery, instant Telegram `file_id` cloud cache, HD cover art, 160kbps vs 320kbps HD audio, real-time lyrics & karaoke, Telegram Stars 12h FUP monetization, referral viral loop, admin analytics | 🟢 **Ready / Tests Passed** (45/45 tests)<br>🛠️ Deployment: Vercel Serverless & Long Polling |
 
 ---
 
@@ -97,14 +105,32 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Option B: Run via Docker Compose
+### Option B: Run the Music Discovery & Downloader Bot (TypeScript / Node.js)
+
+```bash
+cd apps/music-downloader-bot
+
+# 1. Install dependencies:
+npm install
+
+# 2. Jalankan automated unit tests:
+npm test
+
+# 3. Konfigurasi kredensial di .env:
+# Salin .env.example ke .env dan isi BOT_TOKEN dari @BotFather
+
+# 4. Jalankan bot (Local Polling):
+npm run dev
+```
+
+### Option C: Run via Docker Compose (Speaking Coach Bot)
 Jalankan bot beserta stack dependensinya menggunakan Docker Compose langsung dari foldernya:
 ```bash
 cd apps/speaking-coach-bot
 docker compose up -d
 ```
 
-### Option C: 100% Free Production Cloud Deployment (Vercel + Neon PostgreSQL)
+### Option D: 100% Free Production Cloud Deployment (Vercel + Neon PostgreSQL)
 Speaking Coach AI Bot beroperasi 24/7 di infrastruktur cloud serverless tanpa biaya dan tanpa kartu kredit:
 - 🌐 **Primary Production Domain**: [https://speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev)
 - 🛡️ **Fallback Production Domain**: [https://speaking-coach-bot.vercel.app](https://speaking-coach-bot.vercel.app)
