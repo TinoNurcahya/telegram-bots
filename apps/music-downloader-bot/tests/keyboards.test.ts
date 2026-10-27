@@ -3,6 +3,7 @@ import {
   buildPlayerKeyboard,
   buildLyricsBackKeyboard,
   buildHdUpsellKeyboard,
+  buildStartKeyboard,
 } from '../src/bot/keyboards/player.keyboard.js';
 import { TrackInfo } from '../src/types/music.js';
 
@@ -88,5 +89,19 @@ describe('Player Keyboard Unit Tests', () => {
     // Must decode cleanly without URIError: URI malformed
     const queryPart = downloadCb.split(':')[3];
     expect(() => decodeURIComponent(queryPart)).not.toThrow();
+  });
+
+  it('should build start keyboard with switch_inline_query, top charts, and native referral share button', () => {
+    const kb = buildStartKeyboard(7741750167, 'Musicdownloader2001_bot');
+    const inline = kb.inline_keyboard;
+
+    expect(inline.length).toBe(3);
+    expect((inline[0][0] as any).switch_inline_query).toBe('');
+    expect((inline[0][0] as any).text).toContain('Cari di Chat Lain');
+    expect((inline[1][0] as any).callback_data).toBe('charts_cat_global');
+
+    const shareBtn = inline[2][0] as any;
+    expect(shareBtn.url).toContain('https://t.me/share/url');
+    expect(shareBtn.url).toContain('ref_7741750167');
   });
 });

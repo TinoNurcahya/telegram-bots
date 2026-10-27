@@ -1,4 +1,4 @@
-import { Context } from 'grammy';
+import { Context, InlineKeyboard } from 'grammy';
 import { UserService, PLANS, BOOST_PLANS } from '../../services/user.service.js';
 import { buildUpgradeKeyboard } from '../keyboards/monetization.keyboard.js';
 
@@ -79,9 +79,24 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
   // 4. /invite command
   bot.command('invite', async (ctx: Context) => {
     const userId = ctx.from?.id || 0;
-    const me = await ctx.api.getMe();
-    const botUsername = me.username || 'MusicDownloaderBot';
+    let botUsername = 'Musicdownloader2001_bot';
+    try {
+      const me = ctx.me || (await ctx.api.getMe());
+      if (me?.username) {
+        botUsername = me.username;
+      }
+    } catch (_) {}
+
     const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+    const shareText = encodeURIComponent(
+      '🎵 Dengarkan dan unduh lagu favoritmu langsung di Telegram dengan audio kualitas jernih di @Musicdownloader2001_bot!'
+    );
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${shareText}`;
+
+    const inviteKeyboard = new InlineKeyboard()
+      .url('📢 Bagikan ke Teman / Grup', shareUrl)
+      .row()
+      .url('🎁 Buka Link Undangan', inviteLink);
 
     const text =
       `👥 PROGRAM REFERRAL TEMAN\n\n` +
@@ -92,7 +107,7 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
       `Anda sebagai pengundang juga akan langsung menerima +3 kuota unduhan lagu tambahan!\n\n` +
       `Ajak sebanyak-banyaknya teman Anda untuk mengumpulkan kuota download gratis!`;
 
-    await ctx.reply(text);
+    await ctx.reply(text, { reply_markup: inviteKeyboard });
   });
 
   // 5. Callback queries for monetization

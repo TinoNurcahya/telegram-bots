@@ -2,7 +2,7 @@ import { Context, InputFile } from 'grammy';
 import { MusicService } from '../../services/music.service.js';
 import { LyricsService } from '../../services/lyrics.service.js';
 import { UserService } from '../../services/user.service.js';
-import { buildPlayerKeyboard, buildLyricsBackKeyboard, buildHdUpsellKeyboard } from '../keyboards/player.keyboard.js';
+import { buildPlayerKeyboard, buildLyricsBackKeyboard, buildHdUpsellKeyboard, buildStartKeyboard } from '../keyboards/player.keyboard.js';
 import { buildQuotaLimitKeyboard, buildPremiumQuotaLimitKeyboard } from '../keyboards/monetization.keyboard.js';
 import { buildChartsCategoryKeyboard, buildChartListKeyboard } from '../keyboards/charts.keyboard.js';
 import { escapeMarkdown } from '../../utils/markdown.js';
@@ -60,9 +60,10 @@ export function registerMusicHandlers(
       `💖 DUKUNGAN SERVER & KUOTA:\n` +
       `Ketik /profile untuk melihat sisa kuota Anda, atau /upgrade untuk menjadi Supporter VIP!\n\n` +
       `💡 FITUR INLINE QUERY:\n` +
-      `Gunakan bot ini di grup atau chat lain: cukup ketik @username_bot judul lagu di kolom pesan!`;
+      `Gunakan bot ini di grup atau chat lain: cukup ketik @Musicdownloader2001_bot judul lagu di kolom pesan!`;
 
-    await ctx.reply(welcome);
+    const startKeyboard = buildStartKeyboard(userId, 'Musicdownloader2001_bot');
+    await ctx.reply(welcome, { reply_markup: startKeyboard });
   });
 
   // 2. /help command
@@ -397,8 +398,8 @@ export function registerMusicHandlers(
       if (cachedFileId) {
         try {
           const note = quality === '320'
-            ? `\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*`
-            : `\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau kualitas Studio HD 320kbps tanpa kuota? Ketik /upgrade`;
+            ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*\n🤖 Diunduh via @Musicdownloader2001_bot`
+            : `\n\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @Musicdownloader2001_bot`;
 
           await ctx.replyWithAudio(cachedFileId, {
             caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
@@ -435,12 +436,14 @@ export function registerMusicHandlers(
 
         let qualityCaption = '';
         if (quality === '320') {
-          qualityCaption = `\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨`;
+          qualityCaption = `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @Musicdownloader2001_bot`;
         } else {
-          qualityCaption = `\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau kualitas Studio HD 320kbps tanpa kuota? Ketik /upgrade`;
+          qualityCaption = `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @Musicdownloader2001_bot`;
         }
 
-        const note = isPreview ? '\n*(Tersedia format preview resmi 30s)*' : qualityCaption;
+        const note = isPreview
+          ? '\n\n*(Tersedia format preview resmi 30s)*\n🤖 Didengarkan via @Musicdownloader2001_bot'
+          : qualityCaption;
         const sentAudio = await ctx.replyWithAudio(finalUrl, {
           title: track.title,
           performer: track.artist,
@@ -487,7 +490,7 @@ export function registerMusicHandlers(
         title: `${track.title} (Official Preview)`,
         performer: track.artist,
         thumbnail: track.coverUrl ? new InputFile(new URL(track.coverUrl)) : undefined,
-        caption: `🎧 *Preview Resmi (30 Detik)*\n🎵 *${safeTitle}* — ${safeArtist}`,
+        caption: `🎧 *Preview Resmi (30 Detik)*\n🎵 *${safeTitle}* — ${safeArtist}\n\n🤖 Didengarkan via @Musicdownloader2001_bot`,
         parse_mode: 'Markdown',
       });
       return;

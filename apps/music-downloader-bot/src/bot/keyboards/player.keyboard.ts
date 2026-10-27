@@ -105,3 +105,24 @@ export function buildHdUpsellKeyboard(
 
   return keyboard;
 }
+
+/**
+ * Build interactive start and quick access keyboard for /start command.
+ */
+export function buildStartKeyboard(
+  userId: number,
+  botUsername: string = 'Musicdownloader2001_bot'
+): InlineKeyboard {
+  const shareText = encodeURIComponent(
+    '🎵 Cari dan unduh lagu favoritmu langsung di Telegram dengan audio kualitas studio!'
+  );
+  const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${shareText}`;
+
+  return new InlineKeyboard()
+    .switchInline('🔍 Cari di Chat Lain', '')
+    .row()
+    .text('📈 Top 10 Charts', 'charts_cat_global')
+    .row()
+    .url('👥 Ajak Teman (+3 Lagu)', shareUrl);
+}
