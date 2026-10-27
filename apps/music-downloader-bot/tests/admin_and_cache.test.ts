@@ -93,4 +93,50 @@ describe('Admin Handler & Audio Cache Unit Tests', () => {
     expect(adminCard).toContain('DASHBOARD STATISTIK');
     expect(adminCard).toContain('Total Pengguna Terdaftar');
   });
+
+  it('should automatically grant admin owner lifetime VIP and allow /grant command', async () => {
+    const repo = new MemoryUserRepository();
+    const adminId = 7741750167;
+    const service = new UserService(repo, adminId);
+
+    // Verify owner profile is recognized as lifetime VIP
+    const ownerProfile = await service.getUserProfile(adminId);
+    expect(ownerProfile.isPremium).toBe(true);
+    expect(ownerProfile.isOwner).toBe(true);
+    expect(ownerProfile.daysLeft).toBe(9999);
+
+    const ownerQuota = await service.checkDailyQuota(adminId);
+    expect(ownerQuota.canDownload).toBe(true);
+    expect(ownerQuota.maxLimit).toBe(999999);
+
+    // Mock bot for grant command
+    const mockBot: any = {
+      commands: new Map<string, Function>(),
+      command(names: string | string[], fn: Function) {
+        const list = Array.isArray(names) ? names : [names];
+        list.forEach((n) => this.commands.set(n, fn));
+      },
+    };
+    registerAdminHandlers(mockBot, service, adminId);
+    const grantHandler = mockBot.commands.get('grant');
+    expect(grantHandler).toBeDefined();
+
+    let grantReply = '';
+    const grantCtx: any = {
+      from: { id: adminId },
+      message: { text: '/grant 555555 30' },
+      match: '555555 30',
+      reply: (msg: string) => {
+        grantReply = msg;
+      },
+    };
+
+    await grantHandler(grantCtx);
+    expect(grantReply).toContain('Berhasil');
+    expect(grantReply).toContain('555555');
+
+    const grantedUser = await service.getUserProfile(555555);
+    expect(grantedUser.isPremium).toBe(true);
+    expect(grantedUser.daysLeft).toBe(30);
+  });
 });

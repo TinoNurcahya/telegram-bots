@@ -16,7 +16,7 @@ export function createBot(
 ) {
   const bot = new Bot(token);
   const repo = repository || createUserRepository(databaseUrl);
-  const userService = new UserService(repo);
+  const userService = new UserService(repo, adminId);
   const musicService = new MusicService();
   const lyricsService = new LyricsService();
 

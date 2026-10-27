@@ -46,7 +46,7 @@ export const BOOST_PLANS: Record<string, { title: string; description: string; s
 };
 
 export class UserService {
-  constructor(private repo: IUserRepository) {}
+  constructor(private repo: IUserRepository, private adminId: number = 0) {}
 
   /**
    * Get quota cycle key.
@@ -67,10 +67,18 @@ export class UserService {
     return this.repo.upsertUser(telegramId, username, firstName);
   }
 
-  public async getUserProfile(telegramId: number): Promise<UserRecord & { daysLeft: number }> {
+  public async getUserProfile(telegramId: number): Promise<UserRecord & { daysLeft: number; isOwner?: boolean }> {
     let user = await this.repo.getUser(telegramId);
     if (!user) {
       user = await this.repo.upsertUser(telegramId);
+    }
+
+    const isOwner = this.adminId > 0 && telegramId === this.adminId;
+
+    if (isOwner) {
+      user.isPremium = true;
+      user.premiumTier = 'lifetime';
+      return { ...user, daysLeft: 9999, isOwner: true };
     }
 
     let daysLeft = 0;
@@ -89,11 +97,24 @@ export class UserService {
       }
     }
 
-    return { ...user, daysLeft };
+    return { ...user, daysLeft, isOwner: false };
   }
 
   public async checkDailyQuota(telegramId: number): Promise<QuotaCheckResult> {
     const profile = await this.getUserProfile(telegramId);
+
+    // Bot Owner has unlimited downloads without cycle limits
+    if (profile.isOwner) {
+      return {
+        canDownload: true,
+        usedToday: profile.dailyDownloadCount || 0,
+        maxLimit: 999999,
+        isPremium: true,
+        daysLeft: 9999,
+        resetIntervalHours: 0,
+      };
+    }
+
     const cycleKey = this.getQuotaCycleKey(profile.isPremium);
     const usedInCycle = profile.dailyDownloadDate === cycleKey ? profile.dailyDownloadCount : 0;
 
@@ -194,11 +215,21 @@ export class UserService {
   }
 
   public async grantSubscription(telegramId: number, planKey: string): Promise<boolean> {
+    if (planKey === 'lifetime' || planKey === 'plan_lifetime') {
+      await this.repo.grantPremium(telegramId, 9999, 'lifetime');
+      return true;
+    }
     const plan = PLANS[planKey];
-    if (!plan) return false;
-
-    await this.repo.grantPremium(telegramId, plan.days, planKey.replace('plan_', ''));
-    return true;
+    if (plan) {
+      await this.repo.grantPremium(telegramId, plan.days, planKey.replace('plan_', ''));
+      return true;
+    }
+    const days = parseInt(planKey, 10);
+    if (!isNaN(days) && days > 0) {
+      await this.repo.grantPremium(telegramId, days, `manual_${days}d`);
+      return true;
+    }
+    return false;
   }
 
   public async getGlobalStats() {

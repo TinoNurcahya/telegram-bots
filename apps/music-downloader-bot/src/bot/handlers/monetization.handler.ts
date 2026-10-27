@@ -349,11 +349,15 @@ async function sendUserProfile(ctx: Context, userService: UserService): Promise<
   const profile = await userService.getUserProfile(userId);
   const quota = await userService.checkDailyQuota(userId);
 
-  const statusBadge = profile.isPremium
+  const statusBadge = profile.isOwner
+    ? '👑 Bot Creator & Lifetime VIP (Akses Penuh Tanpa Batas)'
+    : profile.isPremium
     ? `⭐ Premium (${profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`})`
     : '🆓 Akun Gratis (Freemium)';
 
-  const quotaLabel = profile.isPremium
+  const quotaLabel = profile.isOwner
+    ? `${quota.usedToday} lagu (Akses Tanpa Batas)`
+    : profile.isPremium
     ? `${quota.usedToday} / ${quota.maxLimit} lagu (Siklus 12 Jam, Reset 07:00 & 19:00 WIB)`
     : `${quota.usedToday} / ${quota.maxLimit} lagu hari ini (Reset 07:00 WIB)`;
 
