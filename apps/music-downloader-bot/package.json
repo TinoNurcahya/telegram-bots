@@ -14,7 +14,8 @@
     "webhook:set": "tsx scripts/manage_webhook.ts set",
     "webhook:delete": "tsx scripts/manage_webhook.ts delete",
     "webhook:commands": "tsx scripts/manage_webhook.ts commands",
-    "webhook:health": "tsx scripts/manage_webhook.ts health"
+    "webhook:health": "tsx scripts/manage_webhook.ts health",
+    "db:check": "tsx scripts/db_check.ts"
   },
   "keywords": [
     "telegram-bot",
