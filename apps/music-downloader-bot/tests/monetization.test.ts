@@ -180,5 +180,73 @@ describe('Monetization Keyboards & Anti-Tamper Tests', () => {
     expect(sentText).toContain('777');
     expect(sentText).toContain('Alex');
   });
+
+  it('should process claim_trial_7d callback query and subsequent /trial command with active status', async () => {
+    const { createBot } = await import('../src/bot/bot.js');
+    const { MemoryUserRepository } = await import('../src/repositories/user.repository.js');
+    const repo = new MemoryUserRepository();
+    const { bot } = createBot('000000000:dummy_token', repo);
+
+    const sentMessages: string[] = [];
+    bot.api.config.use(async (prev, method, payload, signal) => {
+      if (method === 'sendMessage') {
+        sentMessages.push((payload as any).text);
+        return { ok: true, result: { message_id: 1, chat: { id: 1 }, date: 1 } } as any;
+      }
+      if (method === 'editMessageReplyMarkup' || method === 'answerCallbackQuery') {
+        return { ok: true, result: true } as any;
+      }
+      return prev(method, payload, signal);
+    });
+
+    bot.botInfo = {
+      id: 1,
+      is_bot: true,
+      first_name: 'TestBot',
+      username: 'test_bot',
+      can_join_groups: true,
+      can_read_all_group_messages: false,
+      supports_inline_queries: false,
+      can_connect_to_business: false,
+      has_main_web_app: false,
+    };
+
+    // 1. User taps "claim_trial_7d" button
+    await bot.handleUpdate({
+      update_id: 201,
+      callback_query: {
+        id: 'cb_123',
+        from: { id: 888, is_bot: false, first_name: 'Maya' },
+        chat_instance: 'instance_1',
+        data: 'claim_trial_7d',
+        message: {
+          message_id: 301,
+          date: Math.floor(Date.now() / 1000),
+          chat: { id: 888, type: 'private' },
+          text: 'Pilihan upgrade',
+        },
+      },
+    });
+
+    expect(sentMessages.length).toBe(1);
+    expect(sentMessages[0]).toContain('FREE TRIAL 7 HARI BERHASIL DIAKTIFKAN');
+
+    // 2. User checks /trial after claiming
+    await bot.handleUpdate({
+      update_id: 202,
+      message: {
+        message_id: 302,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: 888, type: 'private' },
+        from: { id: 888, is_bot: false, first_name: 'Maya' },
+        text: '/trial',
+        entities: [{ type: 'bot_command', offset: 0, length: 6 }],
+      },
+    });
+
+    expect(sentMessages.length).toBe(2);
+    expect(sentMessages[1]).toContain('STATUS TRIAL & VIP ANDA AKTIF');
+    expect(sentMessages[1]).toContain('hari lagi');
+  });
 });
 

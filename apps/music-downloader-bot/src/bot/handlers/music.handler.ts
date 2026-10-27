@@ -155,8 +155,25 @@ export function registerMusicHandlers(
   });
 
   // 5. Callback query dispatcher
-  bot.on('callback_query:data', async (ctx: Context) => {
+  bot.on('callback_query:data', async (ctx: Context, next: any) => {
     const data = ctx.callbackQuery?.data || '';
+
+    // Only intercept callback queries meant for music & chart navigation
+    const isMusicCallback =
+      data === 'noop' ||
+      data === 'chart:menu' ||
+      data === 'charts_cat_global' ||
+      data.startsWith('chart:cat:') ||
+      data.startsWith('chart:play:') ||
+      data.startsWith('dl:') ||
+      data.startsWith('nav:') ||
+      data.startsWith('prev:') ||
+      data.startsWith('lyr:');
+
+    if (!isMusicCallback) {
+      return next();
+    }
+
     await ctx.answerCallbackQuery();
 
     if (data === 'noop') {

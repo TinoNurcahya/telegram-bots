@@ -45,8 +45,35 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
   // 2. /trial command
   bot.command('trial', async (ctx: Context) => {
     const userId = ctx.from?.id || 0;
+    const profile = await userService.getUserProfile(userId);
+
+    if (profile.hasUsedTrial || profile.isPremium) {
+      const daysText = profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`;
+      await ctx.reply(
+        `⭐ STATUS TRIAL & VIP ANDA AKTIF!\n\n` +
+        `Anda sudah mengaktifkan Free Trial 7 Hari (atau langganan VIP):\n` +
+        `⏳ Sisa Masa Aktif: ${daysText}\n` +
+        `✨ Kuota: 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `🎧 Kualitas: Studio HD 320kbps\n\n` +
+        `Ketik /profile untuk melihat statistik lengkap akun Anda!`
+      );
+      return;
+    }
+
     const res = await userService.claimFreeTrial(userId);
-    await ctx.reply(res.message);
+    if (res.success) {
+      await ctx.reply(
+        `🎉 SELAMAT! FREE TRIAL 7 HARI BERHASIL DIAKTIFKAN! ⭐\n\n` +
+        `Status VIP Anda telah aktif selama 7 hari ke depan.\n\n` +
+        `Fasilitas eksklusif Anda:\n` +
+        `✨ Kuota unduh 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `💎 Audio kualitas rekaman studio HD 320kbps\n` +
+        `📜 Lirik lagu lengkap & akses instan\n\n` +
+        `Ketik /profile untuk cek kuota Anda atau langsung cari lagu favorit Anda!`
+      );
+    } else {
+      await ctx.reply(res.message);
+    }
   });
 
   // 3. /profile command & profile button callback
@@ -120,8 +147,44 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
   bot.callbackQuery('claim_trial_7d', async (ctx: Context) => {
     const userId = ctx.from?.id || 0;
     await ctx.answerCallbackQuery();
+    const profile = await userService.getUserProfile(userId);
+
+    if (profile.hasUsedTrial || profile.isPremium) {
+      const daysText = profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`;
+      try {
+        await ctx.editMessageReplyMarkup({
+          reply_markup: buildUpgradeKeyboard(true),
+        });
+      } catch (_) {}
+      await ctx.reply(
+        `⭐ STATUS TRIAL & VIP ANDA AKTIF!\n\n` +
+        `Anda sudah mengklaim Free Trial sebelumnya:\n` +
+        `⏳ Sisa Masa Aktif: ${daysText}\n\n` +
+        `Ketik /profile untuk melihat kuota Anda atau /upgrade jika ingin memperpanjang akses VIP.`
+      );
+      return;
+    }
+
     const res = await userService.claimFreeTrial(userId);
-    await ctx.reply(res.message);
+    if (res.success) {
+      try {
+        await ctx.editMessageReplyMarkup({
+          reply_markup: buildUpgradeKeyboard(true),
+        });
+      } catch (_) {}
+
+      await ctx.reply(
+        `🎉 SELAMAT! FREE TRIAL 7 HARI BERHASIL DIAKTIFKAN! ⭐\n\n` +
+        `Status VIP Anda telah aktif selama 7 hari ke depan.\n\n` +
+        `Fasilitas eksklusif Anda:\n` +
+        `✨ Kuota unduh 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `💎 Audio kualitas rekaman studio HD 320kbps\n` +
+        `📜 Lirik lagu lengkap & akses instan\n\n` +
+        `Ketik /profile untuk cek kuota Anda atau langsung cari lagu favorit Anda!`
+      );
+    } else {
+      await ctx.reply(res.message);
+    }
   });
 
   bot.callbackQuery(/^pay_stars_(.+)$/, async (ctx: Context) => {
