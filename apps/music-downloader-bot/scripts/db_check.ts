@@ -25,6 +25,9 @@ async function main() {
   const stats = await repo.getGlobalStats();
   console.log('📈 Current Global Stats from Cloud Database:', stats);
 
+  const users = await (repo as any).sql`SELECT telegram_id, username, first_name, created_at FROM music_users LIMIT 5;`;
+  console.log('👤 Registered Users in Database:', users);
+
   console.log('🎉 Neon PostgreSQL Cloud Database is 100% READY for Production!');
 }
 
