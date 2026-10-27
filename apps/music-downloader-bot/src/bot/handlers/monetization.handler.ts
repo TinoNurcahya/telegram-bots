@@ -1,0 +1,278 @@
+import { Context } from 'grammy';
+import { UserService, PLANS, BOOST_PLANS } from '../../services/user.service.js';
+import { buildUpgradeKeyboard } from '../keyboards/monetization.keyboard.js';
+
+export function registerMonetizationHandlers(bot: any, userService: UserService): void {
+  // 1. /upgrade & /premium commands
+  bot.command(['upgrade', 'premium'], async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    const profile = await userService.getUserProfile(userId);
+
+    if (profile.isPremium) {
+      const daysText = profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`;
+      await ctx.reply(
+        `⭐ STATUS AKUN: PREMIUM MEMBER\n\n` +
+        `Anda sedang menikmati akses Premium (${profile.premiumTier}):\n` +
+        `⏳ Sisa Masa Aktif: ${daysText}\n\n` +
+        `Fasilitas eksklusif Anda:\n` +
+        `✨ Unduh hingga 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `🎧 Kualitas audio HD 320kbps\n` +
+        `📜 Akses lirik dan pencarian instan tanpa batas`
+      );
+      return;
+    }
+
+    const pitch =
+      `💖 DUKUNGAN OPERASIONAL & DONATUR VIP (TELEGRAM STARS)\n\n` +
+      `Bot ini dikembangkan secara independen. Donasi Telegram Stars Anda digunakan sepenuhnya untuk pemeliharaan server cloud dan pembaruan API agar bot tetap aktif 24/7.\n\n` +
+      `Sebagai bentuk apresiasi bagi para donatur, akun Anda mendapatkan status Supporter VIP:\n` +
+      `✨ Kuota hingga 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `🎧 Kualitas audio jernih Studio HD 320kbps\n` +
+      `📜 Akses lirik dan pencarian instan tanpa batas\n\n` +
+      `PILIHAN DUKUNGAN DONASI:\n` +
+      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS (Coba semua fasilitas VIP)\n` : '') +
+      `🌟 Donasi Supporter 1 Bulan: 25 Stars\n` +
+      `🚀 Donasi Supporter 3 Bulan: 60 Stars (Hemat 20%)\n` +
+      `👑 Donasi Lifetime Backer: 99 Stars (Akses permanen)\n\n` +
+      `Pilih tombol di bawah untuk menyalurkan dukungan Anda:`;
+
+    await ctx.reply(pitch, {
+      reply_markup: buildUpgradeKeyboard(profile.hasUsedTrial),
+    });
+  });
+
+  // 2. /trial command
+  bot.command('trial', async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    const res = await userService.claimFreeTrial(userId);
+    await ctx.reply(res.message);
+  });
+
+  // 3. /profile command
+  bot.command('profile', async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    const profile = await userService.getUserProfile(userId);
+    const quota = await userService.checkDailyQuota(userId);
+
+    const statusBadge = profile.isPremium
+      ? `⭐ Premium (${profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`})`
+      : '🆓 Akun Gratis (Freemium)';
+
+    const quotaLabel = profile.isPremium
+      ? `${quota.usedToday} / ${quota.maxLimit} lagu (Siklus 12 Jam, Reset 07:00 & 19:00 WIB)`
+      : `${quota.usedToday} / ${quota.maxLimit} lagu hari ini (Reset 07:00 WIB)`;
+
+    const profileCard =
+      `👤 PROFIL & STATISTIK PENGGUNA\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🆔 Telegram ID: \`${userId}\`\n` +
+      `👤 Nama: ${profile.firstName || 'Pengguna'}\n` +
+      `🎖️ Status: ${statusBadge}\n` +
+      `📥 Total Lagu Diunduh: ${profile.totalDownloads} lagu\n` +
+      `📊 Sisa Kuota Siklus Ini: ${quotaLabel}\n` +
+      `🎁 Bonus Kuota Tambahan: +${profile.bonusQuota} lagu\n\n` +
+      `Gunakan /invite untuk menambah kuota gratis atau /upgrade untuk akses VIP!`;
+
+    await ctx.reply(profileCard, { parse_mode: 'Markdown' });
+  });
+
+  // 4. /invite command
+  bot.command('invite', async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    const me = await ctx.api.getMe();
+    const botUsername = me.username || 'MusicDownloaderBot';
+    const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+    const text =
+      `👥 PROGRAM REFERRAL TEMAN\n\n` +
+      `Bagikan link undangan pribadi Anda ke teman atau grup Telegram:\n` +
+      `${inviteLink}\n\n` +
+      `🎁 KEUNTUNGAN REFERRAL:\n` +
+      `Teman yang baru pertama kali bergabung akan langsung mendapatkan +3 kuota unduhan lagu tambahan.\n` +
+      `Anda sebagai pengundang juga akan langsung menerima +3 kuota unduhan lagu tambahan!\n\n` +
+      `Ajak sebanyak-banyaknya teman Anda untuk mengumpulkan kuota download gratis!`;
+
+    await ctx.reply(text);
+  });
+
+  // 5. Callback queries for monetization
+  bot.callbackQuery('show_upgrade_menu', async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    const profile = await userService.getUserProfile(userId);
+    await ctx.answerCallbackQuery();
+
+    const pitch =
+      `💖 DUKUNGAN OPERASIONAL & DONATUR VIP (TELEGRAM STARS)\n\n` +
+      `Donasi Anda membantu pemeliharaan infrastruktur server cloud agar bot tetap aktif dan responsif 24/7!\n\n` +
+      `Fasilitas Apresiasi Donatur VIP:\n` +
+      `✨ Kuota longgar 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `🎧 Kualitas audio rekaman studio HD 320kbps\n` +
+      `📜 Akses lirik dan pencarian instan tanpa batas\n\n` +
+      `PILIHAN DUKUNGAN DONASI:\n` +
+      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS\n` : '') +
+      `🌟 Donasi Supporter 1 Bulan: 25 Stars\n` +
+      `🚀 Donasi Supporter 3 Bulan: 60 Stars (Hemat 20%)\n` +
+      `👑 Donasi Lifetime Backer: 99 Stars`;
+
+    await ctx.reply(pitch, {
+      reply_markup: buildUpgradeKeyboard(profile.hasUsedTrial),
+    });
+  });
+
+  bot.callbackQuery('claim_trial_7d', async (ctx: Context) => {
+    const userId = ctx.from?.id || 0;
+    await ctx.answerCallbackQuery();
+    const res = await userService.claimFreeTrial(userId);
+    await ctx.reply(res.message);
+  });
+
+  bot.callbackQuery(/^pay_stars_(.+)$/, async (ctx: Context) => {
+    await ctx.answerCallbackQuery();
+    const planKey = ctx.match?.[1];
+    const fullKey = `plan_${planKey}`;
+    const plan = PLANS[fullKey];
+
+    if (!plan) {
+      await ctx.reply('⚠️ Paket langganan tidak ditemukan.');
+      return;
+    }
+
+    try {
+      await ctx.replyWithInvoice(
+        plan.title,
+        plan.description,
+        fullKey,
+        'XTR', // Telegram Stars native currency
+        [{ label: plan.title, amount: plan.stars }]
+      );
+    } catch (err) {
+      console.error('Invoice error:', err);
+      await ctx.reply(
+        '⚠️ Maaf, pembayaran via Telegram Stars memerlukan setup Bot Payments di BotFather, ' +
+        'atau Anda dapat mencoba kembali dalam beberapa saat.'
+      );
+    }
+  });
+
+  // Extra Quota Boost callback queries
+  bot.callbackQuery(/^pay_boost_(25|50)$/, async (ctx: Context) => {
+    await ctx.answerCallbackQuery();
+    const boostKey = `boost_${ctx.match?.[1]}`;
+    const boost = BOOST_PLANS[boostKey];
+
+    if (!boost) {
+      await ctx.reply('⚠️ Paket Extra Boost tidak ditemukan.');
+      return;
+    }
+
+    try {
+      await ctx.replyWithInvoice(
+        boost.title,
+        boost.description,
+        boostKey,
+        'XTR',
+        [{ label: boost.title, amount: boost.stars }]
+      );
+    } catch (err) {
+      console.error('Boost invoice error:', err);
+      await ctx.reply('⚠️ Terjadi kendala saat memproses faktur Telegram Stars. Silakan coba lagi nanti.');
+    }
+  });
+
+  // 6. Pre-checkout query validation (Anti-tampering)
+  bot.on('pre_checkout_query', async (ctx: Context) => {
+    const query = ctx.preCheckoutQuery;
+    if (!query) return;
+
+    // Currency check: Must be XTR
+    if (query.currency !== 'XTR') {
+      await ctx.answerPreCheckoutQuery(false, {
+        error_message: 'Mata uang transaksi tidak valid. Hanya Telegram Stars (XTR) yang didukung.',
+      });
+      return;
+    }
+
+    // Payload check (PLANS or BOOST_PLANS)
+    const plan = PLANS[query.invoice_payload] || BOOST_PLANS[query.invoice_payload];
+    if (!plan) {
+      await ctx.answerPreCheckoutQuery(false, {
+        error_message: 'Paket langganan atau boost tidak valid atau telah kedaluwarsa.',
+      });
+      return;
+    }
+
+    // Amount check: Prevent price manipulation
+    if (query.total_amount !== plan.stars) {
+      await ctx.answerPreCheckoutQuery(false, {
+        error_message: `Jumlah Telegram Stars tidak cocok (diharapkan ${plan.stars} Stars).`,
+      });
+      return;
+    }
+
+    // Approve transaction
+    await ctx.answerPreCheckoutQuery(true);
+  });
+
+  // 7. Successful payment handler
+  bot.on('message:successful_payment', async (ctx: Context) => {
+    const payment = ctx.message?.successful_payment;
+    if (!payment) return;
+
+    const userId = ctx.from?.id || 0;
+    const payload = payment.invoice_payload;
+
+    if (payment.currency !== 'XTR') {
+      await ctx.reply('⚠️ Transaksi tidak sah.');
+      return;
+    }
+
+    // Payment Idempotency Guard (Prevents double crediting on webhook retries)
+    const chargeId = payment.telegram_payment_charge_id;
+    const isNew = await userService.recordPayment(chargeId, userId, payload, payment.total_amount);
+    if (!isNew) {
+      console.warn(`Duplicate payment webhook received and safely deduplicated: ${chargeId}`);
+      return;
+    }
+
+    // Case A: Extra Quota Boost fulfillment
+    if (payload.startsWith('boost_')) {
+      const boost = BOOST_PLANS[payload];
+      if (!boost || payment.total_amount !== boost.stars) {
+        await ctx.reply('⚠️ Data transaksi boost tidak sesuai.');
+        return;
+      }
+
+      await userService.addExtraBoost(userId, payload);
+      const boostNotice =
+        `🎉 PEMBELIAN EXTRA BOOST BERHASIL! ⭐\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n` +
+        `Akun Anda telah ditambahkan +${boost.songs} kuota unduhan lagu tambahan!\n` +
+        `Kuota ini langsung aktif dan dapat langsung Anda gunakan sekarang juga!`;
+
+      await ctx.reply(boostNotice);
+      return;
+    }
+
+    // Case B: Premium Pass Subscription fulfillment
+    const plan = PLANS[payload];
+    if (!plan || payment.total_amount !== plan.stars) {
+      console.warn(`Suspicious payment from ${userId}: payload=${payload}, amount=${payment.total_amount}`);
+      await ctx.reply('⚠️ Pembayaran terdeteksi namun tidak cocok dengan sistem kami. Silakan hubungi admin.');
+      return;
+    }
+
+    await userService.grantSubscription(userId, payload);
+    const celebration =
+      `🎉 PEMBAYARAN TELEGRAM STARS BERHASIL! ⭐\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Selamat! Akun Anda telah berhasil di-upgrade ke:\n` +
+      `👑 ${plan.title}\n\n` +
+      `Fasilitas yang langsung aktif:\n` +
+      `✨ Kuota 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `🎧 Kualitas audio HD 320kbps\n` +
+      `📜 Lirik lagu lengkap & pencarian instan\n\n` +
+      `Terima kasih atas dukungan Anda! Selamat menikmati musik favorit Anda!`;
+
+    await ctx.reply(celebration);
+  });
+}

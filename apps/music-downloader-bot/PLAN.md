@@ -47,16 +47,17 @@ graph TD
 - **Always Free**: 30s Audio Previews, Track Search, and Full Lyrics remain 100% free and unlimited.
 - **Quota Reset**: Automatically resets at 00:00 UTC (07:00 WIB).
 
-### 3.2 Telegram Stars (`XTR`) Subscription Tiers
+### 3.2 Telegram Stars (`XTR`) Subscription Tiers & 12-Hour Faster Reset
+- **Fair Usage Policy (FUP)**: **50 unduhan per siklus 12 jam** (reset otomatis 2x sehari pada pukul 07:00 WIB dan 19:00 WIB).
 
 | Plan Identifier | Duration | Telegram Stars (`XTR`) | Discount / Value |
 | :--- | :--- | :--- | :--- |
-| `plan_1m` | 30 Days (1 Bulan) | `25 Stars` | Unlimited downloads & HD 320kbps |
+| `plan_1m` | 30 Days (1 Bulan) | `25 Stars` | 50 unduhan/12 jam & HD 320kbps |
 | `plan_3m` | 90 Days (3 Bulan) | `60 Stars` | Hemat 20% dibanding bulanan |
 | `plan_lifetime` | Lifetime (Seumur Hidup) | `99 Stars` | Sekali bayar akses selamanya |
 
 ### 3.3 Free Trial 7 Hari (`/trial`)
-- Every new user can activate a **1-time 7-Day Free Trial** (`trial_7d`) with zero upfront payment, unlocking unlimited downloads.
+- Every new user can activate a **1-time 7-Day Free Trial** (`trial_7d`) with zero upfront payment, unlocking 50 downloads per 12-hour cycle & HD 320kbps.
 
 ### 3.4 Viral Referral Loop (`/invite`)
 - Shareable Telegram link: `https://t.me/<bot_username>?start=ref_<telegram_id>`.
@@ -64,6 +65,16 @@ graph TD
   - Invitee gets: **+3 Extra Download Quota**.
   - Inviter gets: **+3 Extra Download Quota**.
 - Anti-Tamper & Sybil Defense: Mencegah self-referral (`inviter === invitee`) dan hanya berlaku untuk pendaftar baru.
+
+### 3.5 Audio Bitrate & Quality Differentiation
+- **Free Tier (160kbps Standard)**: Unduh audio kualitas standar 160kbps dengan kuota 5 lagu per 24 jam.
+- **Premium VIP & Free Trial (320kbps Studio HD)**: Unduh audio kualitas rekaman studio 320kbps dengan kuota 50 lagu per siklus 12 jam.
+- **Interactive HD Upsell Modal**: Saat pengguna Free menekan tombol `[ 💎 Unduh HD (320kbps) ]`, bot tidak memotong kuota harian, melainkan menampilkan kartu edukasi audio studio dengan tombol aktivasi Free Trial 7 Hari, menu Stars, dan opsi `[ 📥 Tetap Unduh Versi 160kbps ]`.
+
+### 3.6 Extra Quota Boost (Instant Top-Up)
+Saat kuota 50 lagu per 12 jam habis, pengguna VIP dapat membeli kuota instan tanpa menunggu siklus reset:
+- `boost_25`: **+25 Lagu Instan (10 Stars)**
+- `boost_50`: **+50 Lagu Instan (18 Stars)**
 
 ---
 
@@ -99,6 +110,15 @@ CREATE TABLE IF NOT EXISTS music_referrals (
 );
 ```
 
+### Table 3: `music_audio_cache` (Instant Delivery CDN Bypass)
+```sql
+CREATE TABLE IF NOT EXISTS music_audio_cache (
+    id TEXT PRIMARY KEY, -- format: <track_id>:<quality>
+    file_id TEXT NOT NULL,
+    created_at TEXT DEFAULT ''
+);
+```
+
 ---
 
 ## ⚡ 5. Command Reference
@@ -107,11 +127,13 @@ CREATE TABLE IF NOT EXISTS music_referrals (
 | :--- | :--- | :--- |
 | `/start` | Sambutan interaktif, aktivasi bonus referral jika via link `ref_<id>` | Free |
 | `/song <judul>` | Cari lagu dan tampilkan kartu lagu teratas + cover HD + tombol player | Free |
+| `/charts` atau `/trending` | Buka menu Top 10 Hits Global & Indonesia dengan tombol nomor lagu instan | Free |
 | `/lyrics <judul>` | Cari dan tampilkan lirik lengkap (plain & karaoke synced) | Free |
-| `/profile` | Tampilkan status kuota hari ini, sisa hari aktif, & jumlah download | Free |
+| `/profile` | Tampilkan status kuota siklus ini, sisa hari aktif, & jumlah download | Free |
 | `/upgrade` | Tampilkan menu durasi paket langganan Telegram Stars (`XTR`) | Free |
 | `/trial` | Klaim langsung Free Trial 7 Hari (1x per akun) | Free |
 | `/invite` | Dapatkan link referral personal untuk mengumpulkan bonus kuota (+3) | Free |
+| `/stats` atau `/admin` | Dashboard analitik: total user, download, donatur VIP, & server health | Admin Only |
 | `/help` | Panduan lengkap cara mencari lagu, download, dan inline query | Free |
 
 ---

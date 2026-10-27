@@ -2,14 +2,19 @@
   "name": "music-downloader-bot",
   "version": "1.0.0",
   "description": "High-performance Telegram Music Discovery & Audio Downloader Bot built with TypeScript, grammY, and Vercel Serverless.",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "type": "module",
   "scripts": {
     "dev": "tsx src/main.ts",
     "build": "tsc",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "webhook:info": "tsx scripts/manage_webhook.ts info",
+    "webhook:set": "tsx scripts/manage_webhook.ts set",
+    "webhook:delete": "tsx scripts/manage_webhook.ts delete",
+    "webhook:commands": "tsx scripts/manage_webhook.ts commands",
+    "webhook:health": "tsx scripts/manage_webhook.ts health"
   },
   "keywords": [
     "telegram-bot",
