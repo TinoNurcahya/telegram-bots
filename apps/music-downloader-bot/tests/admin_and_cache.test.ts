@@ -183,4 +183,85 @@ describe('Admin Handler & Audio Cache Unit Tests', () => {
     expect(replyText).toContain('111');
     expect(replyText).toContain('222');
   });
+
+  it('should broadcast message to all users via /broadcast command for admin', async () => {
+    const repo = new MemoryUserRepository();
+    const service = new UserService(repo);
+    const adminId = 999999;
+
+    await service.ensureUser(101, 'user1', 'User One');
+    await service.ensureUser(102, 'user2', 'User Two');
+
+    const userIds = await service.getAllUserIds();
+    expect(userIds).toEqual(expect.arrayContaining([101, 102]));
+
+    const mockBot: any = {
+      commands: new Map<string, Function>(),
+      command(names: string | string[], fn: Function) {
+        const list = Array.isArray(names) ? names : [names];
+        list.forEach((n) => this.commands.set(n, fn));
+      },
+      callbackQuery() {},
+    };
+
+    registerAdminHandlers(mockBot, service, adminId);
+    const broadcastHandler = mockBot.commands.get('broadcast');
+    expect(broadcastHandler).toBeDefined();
+
+    // 1. Non-admin call should be rejected
+    let nonAdminReply = '';
+    const nonAdminCtx: any = {
+      from: { id: 101 },
+      message: { text: '/broadcast Halo' },
+      reply: (msg: string) => {
+        nonAdminReply = msg;
+      },
+    };
+    await broadcastHandler(nonAdminCtx);
+    expect(nonAdminReply).toContain('Akses ditolak');
+
+    // 2. Admin call without message shows guide
+    let guideReply = '';
+    const emptyCtx: any = {
+      from: { id: adminId },
+      message: { text: '/broadcast' },
+      reply: (msg: string) => {
+        guideReply = msg;
+      },
+    };
+    await broadcastHandler(emptyCtx);
+    expect(guideReply).toContain('PANDUAN BROADCAST');
+
+    // 3. Admin broadcast execution
+    const sentMessages: { targetId: number; text: string }[] = [];
+    let initialStatusReply = '';
+    let editedReport = '';
+
+    const adminCtx: any = {
+      from: { id: adminId },
+      chat: { id: adminId },
+      message: { text: '/broadcast Pengumuman Penting Server' },
+      reply: (msg: string) => {
+        initialStatusReply = msg;
+        return { message_id: 1234 };
+      },
+      api: {
+        sendMessage: async (targetId: number, text: string) => {
+          sentMessages.push({ targetId, text });
+        },
+        editMessageText: async (_chatId: number, _msgId: number, text: string) => {
+          editedReport = text;
+        },
+      },
+    };
+
+    await broadcastHandler(adminCtx);
+
+    expect(initialStatusReply).toContain('Memulai pengiriman broadcast');
+    expect(sentMessages.length).toBe(2);
+    expect(sentMessages[0].text).toBe('Pengumuman Penting Server');
+    expect(sentMessages[1].text).toBe('Pengumuman Penting Server');
+    expect(editedReport).toContain('LAPORAN HASIL PENGIRIMAN BROADCAST');
+    expect(editedReport).toContain('Berhasil Terkirim:* 2 user');
+  });
 });

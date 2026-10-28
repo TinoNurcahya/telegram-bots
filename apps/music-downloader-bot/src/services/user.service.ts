@@ -260,6 +260,10 @@ export class UserService {
     return this.repo.getUsers(limit, offset);
   }
 
+  public async getAllUserIds(): Promise<number[]> {
+    return this.repo.getAllUserIds();
+  }
+
   public async getAudioCache(
     trackId: string | number,
     quality: string,

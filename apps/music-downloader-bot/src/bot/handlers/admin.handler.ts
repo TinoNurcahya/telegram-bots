@@ -108,6 +108,77 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
       await sendUsersListPage(ctx, userService, page, true);
     });
   }
+
+  // Admin Broadcast Command: /broadcast <pesan>
+  bot.command('broadcast', async (ctx: Context) => {
+    const senderId = ctx.from?.id || 0;
+    if (adminId > 0 && senderId !== adminId) {
+      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
+      return;
+    }
+
+    const text = ctx.message?.text?.trim() || '';
+    const parts = text.split(/\s+/);
+    const messageToSend = text.substring(parts[0].length).trim();
+
+    if (!messageToSend) {
+      await ctx.reply(
+        `📢 *PANDUAN BROADCAST ADMIN*\n\n` +
+        `Gunakan perintah ini untuk mengirim pengumuman ke seluruh pengguna bot:\n` +
+        `Format: \`/broadcast <pesan Anda>\`\n\n` +
+        `Contoh:\n` +
+        `\`/broadcast 📢 Halo semuanya! Server telah diperbarui dengan fitur baru.\``,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const userIds = await userService.getAllUserIds();
+    if (userIds.length === 0) {
+      await ctx.reply('⚠️ Tidak ada pengguna terdaftar untuk dikirimi broadcast.');
+      return;
+    }
+
+    const statusMsg = await ctx.reply(`⏳ Memulai pengiriman broadcast ke *${userIds.length}* pengguna...`, {
+      parse_mode: 'Markdown',
+    });
+
+    const startTime = Date.now();
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const targetId of userIds) {
+      try {
+        await ctx.api.sendMessage(targetId, messageToSend, { parse_mode: 'Markdown' });
+        successCount++;
+      } catch (err: any) {
+        failCount++;
+      }
+      // Small delay (40ms) to respect Telegram's rate limits
+      await new Promise((r) => setTimeout(r, 40));
+    }
+
+    const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    const reportCard =
+      `📢 *LAPORAN HASIL PENGIRIMAN BROADCAST*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `✅ *Berhasil Terkirim:* ${successCount} user\n` +
+      `❌ *Gagal / Diblokir:* ${failCount} user\n` +
+      `📊 *Total Target:* ${userIds.length} user\n` +
+      `⏱️ *Durasi:* ${elapsedSec} detik`;
+
+    try {
+      if (ctx.chat?.id && statusMsg?.message_id) {
+        await ctx.api.editMessageText(ctx.chat.id, statusMsg.message_id, reportCard, {
+          parse_mode: 'Markdown',
+        });
+      } else {
+        await ctx.reply(reportCard, { parse_mode: 'Markdown' });
+      }
+    } catch (_) {
+      await ctx.reply(reportCard, { parse_mode: 'Markdown' });
+    }
+  });
 }
 
 /**

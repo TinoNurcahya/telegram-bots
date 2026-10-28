@@ -22,6 +22,7 @@ export const ADMIN_COMMANDS: BotCommand[] = [
   ...BOT_COMMANDS,
   { command: 'stats', description: '👑 [Admin] Dashboard statistik & kesehatan bot' },
   { command: 'users', description: '👑 [Admin] Lihat daftar semua pengguna bot' },
+  { command: 'broadcast', description: '👑 [Admin] Kirim pesan siaran ke semua pengguna' },
   { command: 'grant', description: '👑 [Admin] Berikan akses VIP ke user' },
   { command: 'grantme', description: '👑 [Admin] Berikan VIP seumur hidup ke diri sendiri' },
 ];

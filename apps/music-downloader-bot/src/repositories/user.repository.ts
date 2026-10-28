@@ -37,6 +37,7 @@ export interface IUserRepository {
   addReferral(inviterId: number, inviteeId: number): Promise<boolean>;
   getGlobalStats(): Promise<GlobalStats>;
   getUsers(limit?: number, offset?: number): Promise<{ users: UserRecord[]; total: number }>;
+  getAllUserIds(): Promise<number[]>;
   getAudioCache(trackId: string | number, quality: string, title?: string, artist?: string): Promise<string | null>;
   saveAudioCache(trackId: string | number, quality: string, fileId: string, title?: string, artist?: string): Promise<void>;
   recordPayment(chargeId: string, telegramId: number, payload: string, amount: number): Promise<boolean>;
@@ -189,6 +190,10 @@ export class MemoryUserRepository implements IUserRepository {
       users: all.slice(offset, offset + limit),
       total: all.length,
     };
+  }
+
+  public async getAllUserIds(): Promise<number[]> {
+    return Array.from(this.users.keys());
   }
 
   private normalizeCacheSlug(title?: string, artist?: string): string {
@@ -537,6 +542,17 @@ export class PostgresUserRepository implements IUserRepository {
     } catch (err) {
       console.warn('getUsers error:', err);
       return { users: [], total: 0 };
+    }
+  }
+
+  public async getAllUserIds(): Promise<number[]> {
+    await this.ensureSchema();
+    try {
+      const rows = (await this.sql`SELECT telegram_id FROM music_users;`) as any[];
+      return rows.map((r) => Number(r.telegram_id));
+    } catch (err) {
+      console.warn('getAllUserIds error:', err);
+      return [];
     }
   }
 
