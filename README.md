@@ -52,7 +52,7 @@ telegram-bots/
 | Bot Project | Stack | Highlights | Status & Live Bot |
 | :--- | :--- | :--- | :--- |
 | **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
-| **[apps/music-downloader-bot](apps/music-downloader-bot)** | TypeScript, Node.js 22, `grammY`, Deezer API, iTunes API, LRCLIB API, Neon PostgreSQL, Vercel Serverless | Instant song search, Top Charts (`/charts`), direct Telegram audio delivery, instant Telegram `file_id` cloud cache, HD cover art, 160kbps vs 320kbps HD audio, real-time lyrics & karaoke, Telegram Stars 12h FUP monetization, referral viral loop, admin analytics | 🟢 **Ready / Tests Passed** (45/45 tests)<br>🛠️ Deployment: Vercel Serverless & Long Polling |
+| **[apps/music-downloader-bot](apps/music-downloader-bot)** | TypeScript, Node.js 22, `grammY`, Deezer API, iTunes API, LRCLIB API, Neon PostgreSQL, Vercel Serverless | Instant song search, Top Charts (`/charts`), direct Telegram audio delivery, instant Telegram `file_id` cloud cache, HD cover art, 160kbps vs 320kbps HD audio, real-time lyrics & karaoke, Telegram Stars 12h FUP monetization, referral viral loop, admin analytics | 🟢 **Production Live**<br>🤖 Bot: [@Musicdownloader2001_bot](https://t.me/Musicdownloader2001_bot)<br>🌐 Endpoint: [music-downloader-bot.tinonurcahya.dev](https://music-downloader-bot.tinonurcahya.dev) |
 
 ---
 
