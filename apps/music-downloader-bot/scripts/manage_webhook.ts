@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
 import { loadConfig } from '../src/config/env.js';
-import { BOT_COMMANDS } from '../src/bot/commands.js';
+import { BOT_COMMANDS, ADMIN_COMMANDS, setupBotCommands } from '../src/bot/commands.js';
 
 const config = loadConfig();
 
@@ -62,7 +62,7 @@ async function main() {
         }
 
         // Auto-register commands as well
-        await bot.api.setMyCommands(BOT_COMMANDS);
+        await setupBotCommands(bot.api, config.adminId);
         console.log('✅ Menu autocomplete perintah bot berhasil didaftarkan.');
       } catch (err) {
         console.error('❌ Gagal memasang webhook:', err);
@@ -87,9 +87,13 @@ async function main() {
     case '--commands': {
       console.log('📝 Mendaftarkan menu perintah bot ke Telegram API...');
       try {
-        await bot.api.setMyCommands(BOT_COMMANDS);
-        console.log('✅ Daftar perintah bot berhasil didaftarkan:');
+        await setupBotCommands(bot.api, config.adminId);
+        console.log('✅ Daftar perintah publik berhasil didaftarkan:');
         BOT_COMMANDS.forEach((c) => console.log(`   /${c.command.padEnd(10)} - ${c.description}`));
+        if (config.adminId > 0) {
+          console.log(`👑 Daftar perintah khusus Admin (Chat ID: ${config.adminId}):`);
+          ADMIN_COMMANDS.slice(BOT_COMMANDS.length).forEach((c) => console.log(`   /${c.command.padEnd(10)} - ${c.description}`));
+        }
       } catch (err) {
         console.error('❌ Gagal mendaftarkan perintah:', err);
       }

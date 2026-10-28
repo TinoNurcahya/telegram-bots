@@ -1,6 +1,6 @@
 import { createBot } from './bot/bot.js';
 import { loadConfig } from './config/env.js';
-import { BOT_COMMANDS } from './bot/commands.js';
+import { setupBotCommands } from './bot/commands.js';
 
 const config = loadConfig();
 
@@ -17,7 +17,7 @@ bot.start({
   onStart: async (botInfo) => {
     console.log(`🚀 Bot @${botInfo.username} berhasil berjalan dan siap menerima pesan!`);
     try {
-      await bot.api.setMyCommands(BOT_COMMANDS);
+      await setupBotCommands(bot.api, config.adminId);
       console.log('✅ Menu perintah resmi Telegram berhasil didaftarkan ke @BotFather.');
     } catch (err) {
       console.warn('⚠️ Gagal mendaftarkan menu perintah ke Telegram API:', err);
