@@ -92,7 +92,7 @@ describe('Player Keyboard Unit Tests', () => {
   });
 
   it('should build start keyboard with switch_inline_query, top charts, and native referral share button', () => {
-    const kb = buildStartKeyboard(7741750167, 'Musicdownloader2001_bot');
+    const kb = buildStartKeyboard(123456789, 'Musicdownloader2001_bot');
     const inline = kb.inline_keyboard;
 
     expect(inline.length).toBe(3);
@@ -102,6 +102,6 @@ describe('Player Keyboard Unit Tests', () => {
 
     const shareBtn = inline[2][0] as any;
     expect(shareBtn.url).toContain('https://t.me/share/url');
-    expect(shareBtn.url).toContain('ref_7741750167');
+    expect(shareBtn.url).toContain('ref_123456789');
   });
 });

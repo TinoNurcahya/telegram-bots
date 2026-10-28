@@ -6,8 +6,8 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   bot.command(['stats', 'admin'], async (ctx: Context) => {
     const senderId = ctx.from?.id || 0;
 
-    // Security check: Only allow admin if ADMIN_ID is configured
-    if (adminId > 0 && senderId !== adminId) {
+    // Security check: Strictly enforce admin authorization (Fail-Closed)
+    if (!adminId || adminId <= 0 || senderId !== adminId) {
       await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
@@ -19,10 +19,6 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
       const hours = Math.floor(uptimeSec / 3600);
       const minutes = Math.floor((uptimeSec % 3600) / 60);
 
-      const securityNote = adminId === 0
-        ? `\n⚠️ *Perhatian:* ADMIN_ID belum diset di .env. Daftarkan Telegram ID Anda di .env agar perintah ini terkunci.`
-        : '';
-
       const statsCard =
         `📊 *DASHBOARD STATISTIK & KESEHATAN BOT*\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -33,8 +29,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
         `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
         `⚡ *Runtime:* Node.js ${process.version}\n` +
         `💾 *Memory RSS:* ${memUsage} MB\n` +
-        `⏱️ *Process Uptime:* ${hours}j ${minutes}m\n` +
-        `${securityNote}`;
+        `⏱️ *Process Uptime:* ${hours}j ${minutes}m`;
 
       await ctx.reply(statsCard, { parse_mode: 'Markdown' });
     } catch (err) {
@@ -46,7 +41,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   // Admin VIP Grant Command: /grant <userId> [days/lifetime] or /grantme
   bot.command(['grant', 'grantme'], async (ctx: Context) => {
     const senderId = ctx.from?.id || 0;
-    if (adminId > 0 && senderId !== adminId) {
+    if (!adminId || adminId <= 0 || senderId !== adminId) {
       await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
@@ -66,7 +61,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
     }
 
     if (isNaN(targetId)) {
-      await ctx.reply('⚠️ Format salah. Contoh penggunaan:\n`/grant 7741750167 lifetime`\n`/grant 12345678 30`\n`/grantme`', {
+      await ctx.reply('⚠️ Format salah. Contoh penggunaan:\n`/grant 123456789 lifetime`\n`/grant 987654321 30`\n`/grantme`', {
         parse_mode: 'Markdown',
       });
       return;
@@ -82,7 +77,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   // Admin User List Command: /users or /userlist [page]
   bot.command(['users', 'userlist'], async (ctx: Context) => {
     const senderId = ctx.from?.id || 0;
-    if (adminId > 0 && senderId !== adminId) {
+    if (!adminId || adminId <= 0 || senderId !== adminId) {
       await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
@@ -99,7 +94,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   if (typeof bot.callbackQuery === 'function') {
     bot.callbackQuery(/^users_page_(\d+)$/, async (ctx: Context) => {
       const senderId = ctx.from?.id || 0;
-      if (adminId > 0 && senderId !== adminId) {
+      if (!adminId || adminId <= 0 || senderId !== adminId) {
         await ctx.answerCallbackQuery({ text: '⛔ Akses ditolak.', show_alert: true });
         return;
       }
@@ -112,7 +107,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   // Admin Broadcast Command: /broadcast <pesan>
   bot.command('broadcast', async (ctx: Context) => {
     const senderId = ctx.from?.id || 0;
-    if (adminId > 0 && senderId !== adminId) {
+    if (!adminId || adminId <= 0 || senderId !== adminId) {
       await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
@@ -139,15 +134,21 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
       return;
     }
 
-    const statusMsg = await ctx.reply(`⏳ Memulai pengiriman broadcast ke *${userIds.length}* pengguna...`, {
-      parse_mode: 'Markdown',
-    });
+    // Serverless Timeout Guard: Limit batch to 100 targets per execution to stay within Vercel timeout
+    const MAX_TARGETS = 100;
+    const targetUserIds = userIds.slice(0, MAX_TARGETS);
+    const hasMore = userIds.length > MAX_TARGETS;
+
+    const statusMsg = await ctx.reply(
+      `⏳ Memulai pengiriman broadcast ke *${targetUserIds.length}* pengguna${hasMore ? ` (batch 1 dari total ${userIds.length} user)` : ''}...`,
+      { parse_mode: 'Markdown' }
+    );
 
     const startTime = Date.now();
     let successCount = 0;
     let failCount = 0;
 
-    for (const targetId of userIds) {
+    for (const targetId of targetUserIds) {
       try {
         await ctx.api.sendMessage(targetId, messageToSend, { parse_mode: 'Markdown' });
         successCount++;
@@ -159,13 +160,17 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
     }
 
     const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    const serverlessNote = hasMore
+      ? `\n⚠️ *Batas Serverless:* Pengiriman dibatasi ${MAX_TARGETS} user per batch untuk menjaga kestabilan waktu eksekusi Vercel.`
+      : '';
     const reportCard =
       `📢 *LAPORAN HASIL PENGIRIMAN BROADCAST*\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `✅ *Berhasil Terkirim:* ${successCount} user\n` +
       `❌ *Gagal / Diblokir:* ${failCount} user\n` +
-      `📊 *Total Target:* ${userIds.length} user\n` +
-      `⏱️ *Durasi:* ${elapsedSec} detik`;
+      `📊 *Target Batch:* ${targetUserIds.length} user\n` +
+      `⏱️ *Durasi:* ${elapsedSec} detik` +
+      `${serverlessNote}`;
 
     try {
       if (ctx.chat?.id && statusMsg?.message_id) {

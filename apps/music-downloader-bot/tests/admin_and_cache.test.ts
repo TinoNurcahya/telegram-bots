@@ -98,11 +98,30 @@ describe('Admin Handler & Audio Cache Unit Tests', () => {
     await statsHandler(adminCtx);
     expect(adminCard).toContain('DASHBOARD STATISTIK');
     expect(adminCard).toContain('Total Pengguna Terdaftar');
+
+    // Fail-Closed check: When adminId is 0 (unconfigured), all callers must be strictly rejected
+    const unconfiguredMockBot: any = {
+      commands: new Map<string, Function>(),
+      command(names: string | string[], fn: Function) {
+        const list = Array.isArray(names) ? names : [names];
+        list.forEach((n) => this.commands.set(n, fn));
+      },
+    };
+    registerAdminHandlers(unconfiguredMockBot, service, 0);
+    const unconfiguredStats = unconfiguredMockBot.commands.get('stats');
+    let unconfiguredReply = '';
+    await unconfiguredStats({
+      from: { id: 111111 },
+      reply: (msg: string) => {
+        unconfiguredReply = msg;
+      },
+    });
+    expect(unconfiguredReply).toContain('Akses ditolak');
   });
 
   it('should automatically grant admin owner lifetime VIP and allow /grant command', async () => {
     const repo = new MemoryUserRepository();
-    const adminId = 7741750167;
+    const adminId = 123456789;
     const service = new UserService(repo, adminId);
 
     // Verify owner profile is recognized as lifetime VIP

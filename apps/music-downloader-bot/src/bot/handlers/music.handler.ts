@@ -7,6 +7,9 @@ import { buildQuotaLimitKeyboard, buildPremiumQuotaLimitKeyboard } from '../keyb
 import { buildChartsCategoryKeyboard, buildChartListKeyboard } from '../keyboards/charts.keyboard.js';
 import { escapeMarkdown } from '../../utils/markdown.js';
 
+// In-Flight concurrency lock to prevent TOCTOU race conditions on quota deduction
+const inFlightDownloads = new Set<number>();
+
 export function registerMusicHandlers(
   bot: any,
   musicService: MusicService,
@@ -423,62 +426,129 @@ export function registerMusicHandlers(
         }
       }
 
-      const qualityBadge = quality === '320' ? 'Studio HD (320kbps)' : 'Standar (160kbps)';
-      const safeTitle = escapeMarkdown(track.title);
-      const safeArtist = escapeMarkdown(track.artist);
-      const safeAlbum = escapeMarkdown(track.album);
-
-      const downloadNotice = await ctx.reply(
-        `⏳ *Menghubungkan audio stream [${qualityBadge}] untuk:* ${safeTitle} — ${safeArtist}...\nMohon tunggu beberapa detik.`,
-        { parse_mode: 'Markdown' }
-      );
-
-      // 1. Check audio file_id cache first (Instant delivery without CDN fetch)
-      let cachedFileId: string | null = null;
-      if (userService) {
-        cachedFileId = await userService.getAudioCache(track.id, quality, track.title, track.artist);
+      // Anti-concurrency race condition (TOCTOU): Prevent multi-tap quota bypass
+      if (inFlightDownloads.has(userId)) {
+        await ctx.reply(
+          '⏳ *Unduhan Sedang Berjalan*\n\n' +
+          'Anda sedang memiliki proses unduhan musik yang sedang berlangsung. Mohon tunggu sejenak hingga proses selesai sebelum mengunduh lagu berikutnya.',
+          { parse_mode: 'Markdown' }
+        );
+        return;
       }
 
-      const botUsernameEscaped = ctx.me?.username ? escapeMarkdown(ctx.me.username) : 'Musicdownloader2001\\_bot';
+      inFlightDownloads.add(userId);
+      try {
+        const qualityBadge = quality === '320' ? 'Studio HD (320kbps)' : 'Standar (160kbps)';
+        const safeTitle = escapeMarkdown(track.title);
+        const safeArtist = escapeMarkdown(track.artist);
+        const safeAlbum = escapeMarkdown(track.album);
 
-      if (cachedFileId) {
-        try {
-          const note = quality === '320'
-            ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*\n🤖 Diunduh via @${botUsernameEscaped}`
-            : `\n\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
+        const downloadNotice = await ctx.reply(
+          `⏳ *Menghubungkan audio stream [${qualityBadge}] untuk:* ${safeTitle} — ${safeArtist}...\nMohon tunggu beberapa detik.`,
+          { parse_mode: 'Markdown' }
+        );
 
+        // 1. Check audio file_id cache first (Instant delivery without CDN fetch)
+        let cachedFileId: string | null = null;
+        if (userService) {
+          cachedFileId = await userService.getAudioCache(track.id, quality, track.title, track.artist);
+        }
+
+        const botUsernameEscaped = ctx.me?.username ? escapeMarkdown(ctx.me.username) : 'Musicdownloader2001\\_bot';
+
+        if (cachedFileId) {
           try {
-            await ctx.replyWithAudio(cachedFileId, {
-              caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
-              parse_mode: 'Markdown',
-            });
-          } catch (_) {
-            // Fallback for files cached as Telegram documents
-            await ctx.replyWithDocument(cachedFileId, {
-              caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
-              parse_mode: 'Markdown',
-            });
+            const note = quality === '320'
+              ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨ *(Instant Cloud Cache)*\n🤖 Diunduh via @${botUsernameEscaped}`
+              : `\n\n🎧 *Kualitas:* Standar (160kbps) *(Instant Cloud Cache)*\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
+
+            try {
+              await ctx.replyWithAudio(cachedFileId, {
+                caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
+                parse_mode: 'Markdown',
+              });
+            } catch (_) {
+              // Fallback for files cached as Telegram documents
+              await ctx.replyWithDocument(cachedFileId, {
+                caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
+                parse_mode: 'Markdown',
+              });
+            }
+
+            if (userService) {
+              await userService.recordDownload(userId);
+            }
+
+            try {
+              await ctx.api.deleteMessage(ctx.chat!.id, downloadNotice.message_id);
+            } catch (_) {}
+            return;
+          } catch (cacheErr) {
+            console.warn('Failed to send cached audio file_id, falling back to CDN stream:', cacheErr);
           }
+        }
+
+        // 2. Resolve full audio stream URL
+        try {
+          const fullStreamUrl = await musicService.resolveFullAudioStream(track.title, track.artist, quality);
+
+          // Explicit check: If full audio cannot be resolved, DO NOT send 30s preview and DO NOT deduct quota!
+          if (!fullStreamUrl) {
+            const failKeyboard = track.previewUrl
+              ? new InlineKeyboard().text('🎧 Putar Cuplikan (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
+              : undefined;
+
+            await ctx.api.editMessageText(
+              ctx.chat!.id,
+              downloadNotice.message_id,
+              `⚠️ *Audio Lagu Penuh Belum Tersedia*\n\n` +
+              `Maaf, file audio full untuk *${safeTitle}* — *${safeArtist}* belum dapat dialirkan oleh server streaming saat ini.\n\n` +
+              `ℹ️ *Kuota unduhan Anda TIDAK dipotong* untuk percobaan ini. Anda tetap dapat mendengarkan cuplikan pratinjau resmi 30 detik melalui tombol di bawah:`,
+              {
+                parse_mode: 'Markdown',
+                reply_markup: failKeyboard,
+              }
+            );
+            return;
+          }
+
+          const qualityCaption = quality === '320'
+            ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @${botUsernameEscaped}`
+            : `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
+
+          let thumbnailInput: InputFile | undefined = undefined;
+          if (track.coverUrl && track.coverUrl.startsWith('http')) {
+            try {
+              thumbnailInput = new InputFile(new URL(track.coverUrl));
+            } catch (_) {
+              thumbnailInput = undefined;
+            }
+          }
+
+          const sentAudio = await ctx.replyWithAudio(fullStreamUrl, {
+            title: track.title,
+            performer: track.artist,
+            thumbnail: thumbnailInput,
+            caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${qualityCaption}`,
+            parse_mode: 'Markdown',
+          });
 
           if (userService) {
             await userService.recordDownload(userId);
+
+            // Save newly generated Telegram file_id to cache (supports both audio and document messages)
+            const fileId = sentAudio?.audio?.file_id || (sentAudio as any)?.document?.file_id;
+            if (fileId) {
+              await userService.saveAudioCache(track.id, quality, fileId, track.title, track.artist);
+            }
           }
 
+          // Clean up status message
           try {
             await ctx.api.deleteMessage(ctx.chat!.id, downloadNotice.message_id);
           } catch (_) {}
-          return;
-        } catch (cacheErr) {
-          console.warn('Failed to send cached audio file_id, falling back to CDN stream:', cacheErr);
-        }
-      }
-
-      // 2. Resolve full audio stream URL
-      try {
-        const fullStreamUrl = await musicService.resolveFullAudioStream(track.title, track.artist, quality);
-
-        // Explicit check: If full audio cannot be resolved, DO NOT send 30s preview and DO NOT deduct quota!
-        if (!fullStreamUrl) {
+        } catch (err) {
+          console.error('Audio stream delivery error:', err);
           const failKeyboard = track.previewUrl
             ? new InlineKeyboard().text('🎧 Putar Cuplikan (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
             : undefined;
@@ -486,67 +556,15 @@ export function registerMusicHandlers(
           await ctx.api.editMessageText(
             ctx.chat!.id,
             downloadNotice.message_id,
-            `⚠️ *Audio Lagu Penuh Belum Tersedia*\n\n` +
-            `Maaf, file audio full untuk *${safeTitle}* — *${safeArtist}* belum dapat dialirkan oleh server streaming saat ini.\n\n` +
-            `ℹ️ *Kuota unduhan Anda TIDAK dipotong* untuk percobaan ini. Anda tetap dapat mendengarkan cuplikan pratinjau resmi 30 detik melalui tombol di bawah:`,
+            '⚠️ Terjadi kendala teknis saat mengalirkan audio ke Telegram. Kuota Anda tidak dipotong. Silakan coba lagi beberapa saat lagi atau dengarkan cuplikan pratinjau audio 30 detik di bawah ini:',
             {
               parse_mode: 'Markdown',
               reply_markup: failKeyboard,
             }
           );
-          return;
         }
-
-        const qualityCaption = quality === '320'
-          ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @${botUsernameEscaped}`
-          : `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
-
-        let thumbnailInput: InputFile | undefined = undefined;
-        if (track.coverUrl && track.coverUrl.startsWith('http')) {
-          try {
-            thumbnailInput = new InputFile(new URL(track.coverUrl));
-          } catch (_) {
-            thumbnailInput = undefined;
-          }
-        }
-
-        const sentAudio = await ctx.replyWithAudio(fullStreamUrl, {
-          title: track.title,
-          performer: track.artist,
-          thumbnail: thumbnailInput,
-          caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${qualityCaption}`,
-          parse_mode: 'Markdown',
-        });
-
-        if (userService) {
-          await userService.recordDownload(userId);
-
-          // Save newly generated Telegram file_id to cache (supports both audio and document messages)
-          const fileId = sentAudio?.audio?.file_id || (sentAudio as any)?.document?.file_id;
-          if (fileId) {
-            await userService.saveAudioCache(track.id, quality, fileId, track.title, track.artist);
-          }
-        }
-
-        // Clean up status message
-        try {
-          await ctx.api.deleteMessage(ctx.chat!.id, downloadNotice.message_id);
-        } catch (_) {}
-      } catch (err) {
-        console.error('Audio stream delivery error:', err);
-        const failKeyboard = track.previewUrl
-          ? new InlineKeyboard().text('🎧 Putar Cuplikan (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
-          : undefined;
-
-        await ctx.api.editMessageText(
-          ctx.chat!.id,
-          downloadNotice.message_id,
-          '⚠️ Terjadi kendala teknis saat mengalirkan audio ke Telegram. Kuota Anda tidak dipotong. Silakan coba lagi beberapa saat lagi atau dengarkan cuplikan pratinjau audio 30 detik di bawah ini:',
-          {
-            parse_mode: 'Markdown',
-            reply_markup: failKeyboard,
-          }
-        );
+      } finally {
+        inFlightDownloads.delete(userId);
       }
       return;
     }

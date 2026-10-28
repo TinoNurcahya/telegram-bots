@@ -12,6 +12,7 @@ A high-performance, asynchronous Telegram Music Companion and Audio Downloader B
 - **📥 Streaming & Unduhan Audio Telegram**: Mengirimkan file audio Telegram resmi lengkap dengan metadata (*title*, *performer*, *album art thumbnail*) secara langsung tanpa batasan payload file server.
 - **🎧 Kualitas Audio 160kbps vs Studio HD 320kbps**: Pengguna Free dapat mengunduh lagu 160kbps standar, sedangkan pengguna Premium / Free Trial menikmati audio jernih Studio HD 320kbps.
 - **💎 Monetisasi Telegram Stars (`XTR`) & Kuota Harian/Bulanan**: Kuota Free (5 lagu/hari, maks 50/bulan), Free Trial 7 Hari (10 lagu/hari, maks 50 lagu total), dan VIP Member (15 lagu/hari, maks 150/bulan) dengan reset harian 07:00 WIB, paket langganan Stars (25, 60, 99 Stars), dan Extra Quota Boost (+25/+50 lagu).
+- **👑 Suite Khusus Admin (`/stats`, `/users`, `/broadcast`, `/grant`)**: Dashboard analitik server, pagination daftar seluruh pengguna, pesan siaran massal dengan proteksi rate limit aman (40ms) & delivery report, dan aktivasi VIP manual.
 - **👥 Sistem Referral Viral (`/invite`)**: Dapatkan +3 kuota unduhan lagu tambahan untuk pengundang dan teman baru yang bergabung.
 - **🎧 Pratinjau Resmi 30 Detik (Audio Preview)**: Tombol pemutar audio cuplikan resmi 30 detik untuk mendengarkan lagu secara kilat.
 - **📜 Lirik Lagu Lengkap & Karaoke Timestamps (`/lyrics`)**: Integrasi langsung dengan open API **LRCLIB** untuk menampilkan lirik teks bersih dan lirik tersinkronisasi.
@@ -93,7 +94,11 @@ npm run build
 1. Hubungkan repository GitHub Anda ke [Vercel](https://vercel.com).
 2. Tambahkan **Environment Variables** di dashboard Vercel:
    - `BOT_TOKEN`: Token bot Anda dari BotFather
-   - `WEBHOOK_SECRET`: Token rahasia webhook
+   - `DATABASE_URL`: Connection URL PostgreSQL Neon (untuk penyimpanan user & dual-key audio cache)
+   - `WEBHOOK_SECRET`: Token rahasia otentikasi webhook Telegram
+   - `ADMIN_ID`: Telegram User ID Admin Anda (contoh: `123456789`)
+   - `RAPIDAPI_KEY`: API Key RapidAPI (`youtube-mp36`) untuk resolver lagu full
+   - `NODE_ENV`: `production`
 3. Daftarkan URL Webhook ke Telegram API:
    Anda dapat menggunakan Webhook Manager CLI bawaan:
    ```bash

@@ -302,6 +302,13 @@ export class MusicService {
       });
 
       if (!res.ok) {
+        if (res.status === 429) {
+          console.warn('[RapidAPI Exhausted] 429 Quota limit reached (Free tier 300 requests/month exhausted). Falling back gracefully.');
+        } else if (res.status === 403) {
+          console.warn('[RapidAPI Forbidden] 403 RapidAPI key invalid, expired, or unsubscribed.');
+        } else {
+          console.warn(`[RapidAPI Error] HTTP ${res.status}: ${res.statusText}`);
+        }
         return null;
       }
 
