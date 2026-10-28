@@ -45,18 +45,21 @@ describe('UserService & Freemium Quota Tests', () => {
     const premiumQuota = await userService.checkDailyQuota(userId);
     expect(premiumQuota.canDownload).toBe(true);
     expect(premiumQuota.isPremium).toBe(true);
-    expect(premiumQuota.maxLimit).toBe(50);
-    expect(premiumQuota.resetIntervalHours).toBe(12);
+    expect(premiumQuota.maxLimit).toBe(15);
+    expect(premiumQuota.resetIntervalHours).toBe(24);
   });
 
-  it('should allow 1-time 7-day Free Trial and reject duplicate claims', async () => {
+  it('should allow 1-time 7-day Free Trial and reject duplicate claims with 10 quota', async () => {
     const userId = 1003;
     await userService.ensureUser(userId, 'trialuser', 'Trial');
 
     // First claim must succeed
     const firstClaim = await userService.claimFreeTrial(userId);
     expect(firstClaim.success).toBe(true);
-    expect((await userService.checkDailyQuota(userId)).isPremium).toBe(true);
+    const trialQuota = await userService.checkDailyQuota(userId);
+    expect(trialQuota.isPremium).toBe(true);
+    expect(trialQuota.maxLimit).toBe(10);
+    expect(trialQuota.resetIntervalHours).toBe(24);
 
     // Second claim must be rejected
     const secondClaim = await userService.claimFreeTrial(userId);
@@ -101,17 +104,15 @@ describe('UserService & Freemium Quota Tests', () => {
     expect(PLANS.plan_lifetime.stars).toBe(99);
   });
 
-  it('should correctly calculate 12-hour cycle keys for Premium and 24-hour for Free', () => {
+  it('should correctly calculate daily cycle keys for Premium and Free', () => {
     const morningDate = new Date('2026-10-26T08:30:00Z'); // 08:30 UTC
     const eveningDate = new Date('2026-10-26T18:30:00Z'); // 18:30 UTC
 
-    // Free users always get YYYY-MM-DD
+    // All users get daily reset YYYY-MM-DD (00:00 UTC / 07:00 WIB)
     expect(userService.getQuotaCycleKey(false, morningDate)).toBe('2026-10-26');
     expect(userService.getQuotaCycleKey(false, eveningDate)).toBe('2026-10-26');
-
-    // Premium users get 12-hour slots: -00 for 00:00-11:59 UTC, -12 for 12:00-23:59 UTC
-    expect(userService.getQuotaCycleKey(true, morningDate)).toBe('2026-10-26-00');
-    expect(userService.getQuotaCycleKey(true, eveningDate)).toBe('2026-10-26-12');
+    expect(userService.getQuotaCycleKey(true, morningDate)).toBe('2026-10-26');
+    expect(userService.getQuotaCycleKey(true, eveningDate)).toBe('2026-10-26');
   });
 
   it('should allow purchasing Extra Quota Boost (+25 or +50 songs) when Premium limit is reached', async () => {
@@ -124,6 +125,33 @@ describe('UserService & Freemium Quota Tests', () => {
     expect(boostSuccess).toBe(true);
 
     const quota = await userService.checkDailyQuota(userId);
-    expect(quota.maxLimit).toBe(75); // 50 base + 25 boost
+    expect(quota.maxLimit).toBe(40); // 15 base + 25 boost = 40
+  });
+
+  it('should enforce monthly limits when monthly quota is exhausted', async () => {
+    const userId = 4001;
+    await userService.ensureUser(userId, 'monthly_tester', 'Tester');
+
+    // Simulate 50 downloads already this month but 0 today
+    const user = await repo.getUser(userId);
+    if (user) {
+      user.monthlyDownloadCount = 50;
+      user.monthlyDownloadDate = userService.getMonthCycleKey();
+      user.dailyDownloadCount = 0;
+      user.dailyDownloadDate = userService.getQuotaCycleKey();
+    }
+
+    const freeQuota = await userService.checkDailyQuota(userId);
+    expect(freeQuota.canDownload).toBe(false);
+    expect(freeQuota.limitReason).toBe('monthly');
+    expect(freeQuota.usedThisMonth).toBe(50);
+    expect(freeQuota.maxMonthlyLimit).toBe(50);
+
+    // Upgrade to VIP
+    await userService.grantSubscription(userId, 'plan_1m');
+    const vipQuota = await userService.checkDailyQuota(userId);
+    expect(vipQuota.canDownload).toBe(true);
+    expect(vipQuota.maxMonthlyLimit).toBe(150);
+    expect(vipQuota.usedThisMonth).toBe(50);
   });
 });

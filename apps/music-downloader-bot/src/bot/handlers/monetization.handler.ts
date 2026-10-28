@@ -11,12 +11,14 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
 
     if (profile.isPremium) {
       const daysText = profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`;
+      const quotaCount = profile.premiumTier === 'trial_7d' ? '10' : '15';
+      const monthlyMax = profile.premiumTier === 'trial_7d' ? '50' : '150';
       await ctx.reply(
         `⭐ STATUS AKUN: PREMIUM MEMBER\n\n` +
         `Anda sedang menikmati akses Premium (${profile.premiumTier}):\n` +
         `⏳ Sisa Masa Aktif: ${daysText}\n\n` +
         `Fasilitas eksklusif Anda:\n` +
-        `✨ Unduh hingga 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `✨ Unduh hingga ${quotaCount} lagu per hari (maks ${monthlyMax} lagu/bulan)\n` +
         `🎧 Kualitas audio HD 320kbps\n` +
         `📜 Akses lirik dan pencarian instan tanpa batas`
       );
@@ -27,11 +29,11 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
       `💖 DUKUNGAN OPERASIONAL & DONATUR VIP (TELEGRAM STARS)\n\n` +
       `Bot ini dikembangkan secara independen. Donasi Telegram Stars Anda digunakan sepenuhnya untuk pemeliharaan server cloud dan pembaruan API agar bot tetap aktif 24/7.\n\n` +
       `Sebagai bentuk apresiasi bagi para donatur, akun Anda mendapatkan status Supporter VIP:\n` +
-      `✨ Kuota hingga 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `✨ Kuota hingga 15 lagu per hari (maks 150 lagu/bulan)\n` +
       `🎧 Kualitas audio jernih Studio HD 320kbps\n` +
       `📜 Akses lirik dan pencarian instan tanpa batas\n\n` +
       `PILIHAN DUKUNGAN DONASI:\n` +
-      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS (Coba semua fasilitas VIP)\n` : '') +
+      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS (Coba 10 lagu/hari, maks 50 lagu)\n` : '') +
       `🌟 Donasi Supporter 1 Bulan: 25 Stars\n` +
       `🚀 Donasi Supporter 3 Bulan: 60 Stars (Hemat 20%)\n` +
       `👑 Donasi Lifetime Backer: 99 Stars (Akses permanen)\n\n` +
@@ -49,11 +51,13 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
 
     if (profile.hasUsedTrial || profile.isPremium) {
       const daysText = profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`;
+      const quotaCount = profile.premiumTier === 'trial_7d' ? '10' : '15';
+      const monthlyMax = profile.premiumTier === 'trial_7d' ? '50' : '150';
       await ctx.reply(
         `⭐ STATUS TRIAL & VIP ANDA AKTIF!\n\n` +
         `Anda sudah mengaktifkan Free Trial 7 Hari (atau langganan VIP):\n` +
         `⏳ Sisa Masa Aktif: ${daysText}\n` +
-        `✨ Kuota: 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `✨ Kuota: ${quotaCount} lagu per hari (maks ${monthlyMax} lagu/bulan)\n` +
         `🎧 Kualitas: Studio HD 320kbps\n\n` +
         `Ketik /profile untuk melihat statistik lengkap akun Anda!`
       );
@@ -66,7 +70,7 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
         `🎉 SELAMAT! FREE TRIAL 7 HARI BERHASIL DIAKTIFKAN! ⭐\n\n` +
         `Status VIP Anda telah aktif selama 7 hari ke depan.\n\n` +
         `Fasilitas eksklusif Anda:\n` +
-        `✨ Kuota unduh 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `✨ Kuota unduh 10 lagu per hari (maks 50 lagu selama masa trial)\n` +
         `💎 Audio kualitas rekaman studio HD 320kbps\n` +
         `📜 Lirik lagu lengkap & akses instan\n\n` +
         `Ketik /profile untuk cek kuota Anda atau langsung cari lagu favorit Anda!`
@@ -130,11 +134,11 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
       `💖 DUKUNGAN OPERASIONAL & DONATUR VIP (TELEGRAM STARS)\n\n` +
       `Donasi Anda membantu pemeliharaan infrastruktur server cloud agar bot tetap aktif dan responsif 24/7!\n\n` +
       `Fasilitas Apresiasi Donatur VIP:\n` +
-      `✨ Kuota longgar 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `✨ Kuota hingga 15 lagu per hari (maks 150 lagu/bulan)\n` +
       `🎧 Kualitas audio rekaman studio HD 320kbps\n` +
       `📜 Akses lirik dan pencarian instan tanpa batas\n\n` +
       `PILIHAN DUKUNGAN DONASI:\n` +
-      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS\n` : '') +
+      (!profile.hasUsedTrial ? `🎁 Free Trial 7 Hari: GRATIS (10 lagu/hari, maks 50 lagu)\n` : '') +
       `🌟 Donasi Supporter 1 Bulan: 25 Stars\n` +
       `🚀 Donasi Supporter 3 Bulan: 60 Stars (Hemat 20%)\n` +
       `👑 Donasi Lifetime Backer: 99 Stars`;
@@ -177,7 +181,7 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
         `🎉 SELAMAT! FREE TRIAL 7 HARI BERHASIL DIAKTIFKAN! ⭐\n\n` +
         `Status VIP Anda telah aktif selama 7 hari ke depan.\n\n` +
         `Fasilitas eksklusif Anda:\n` +
-        `✨ Kuota unduh 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+        `✨ Kuota unduh 10 lagu per hari (maks 50 lagu selama masa trial)\n` +
         `💎 Audio kualitas rekaman studio HD 320kbps\n` +
         `📜 Lirik lagu lengkap & akses instan\n\n` +
         `Ketik /profile untuk cek kuota Anda atau langsung cari lagu favorit Anda!`
@@ -329,7 +333,7 @@ export function registerMonetizationHandlers(bot: any, userService: UserService)
       `Selamat! Akun Anda telah berhasil di-upgrade ke:\n` +
       `👑 ${plan.title}\n\n` +
       `Fasilitas yang langsung aktif:\n` +
-      `✨ Kuota 50 lagu per siklus 12 jam (reset 07:00 & 19:00 WIB)\n` +
+      `✨ Kuota 15 lagu per hari (maks 150 lagu/bulan)\n` +
       `🎧 Kualitas audio HD 320kbps\n` +
       `📜 Lirik lagu lengkap & pencarian instan\n\n` +
       `Terima kasih atas dukungan Anda! Selamat menikmati musik favorit Anda!`;
@@ -355,11 +359,13 @@ async function sendUserProfile(ctx: Context, userService: UserService): Promise<
     ? `⭐ Premium (${profile.premiumTier === 'lifetime' ? 'Seumur Hidup' : `${profile.daysLeft} hari lagi`})`
     : '🆓 Akun Gratis (Freemium)';
 
-  const quotaLabel = profile.isOwner
-    ? `${quota.usedToday} lagu (Akses Tanpa Batas)`
-    : profile.isPremium
-    ? `${quota.usedToday} / ${quota.maxLimit} lagu (Siklus 12 Jam, Reset 07:00 & 19:00 WIB)`
-    : `${quota.usedToday} / ${quota.maxLimit} lagu hari ini (Reset 07:00 WIB)`;
+  const dailyQuotaLabel = profile.isOwner
+    ? `Akses Tanpa Batas`
+    : `${quota.usedToday} / ${quota.maxLimit} lagu (Reset 07:00 WIB)`;
+
+  const monthlyQuotaLabel = profile.isOwner
+    ? `Akses Tanpa Batas`
+    : `${quota.usedThisMonth} / ${quota.maxMonthlyLimit} lagu (Reset awal bulan)`;
 
   const profileCard =
     `👤 PROFIL & STATISTIK PENGGUNA\n` +
@@ -368,7 +374,8 @@ async function sendUserProfile(ctx: Context, userService: UserService): Promise<
     `👤 Nama: ${escapeMarkdown(profile.firstName || 'Pengguna')}\n` +
     `🎖️ Status: ${statusBadge}\n` +
     `📥 Total Lagu Diunduh: ${profile.totalDownloads} lagu\n` +
-    `📊 Sisa Kuota Siklus Ini: ${quotaLabel}\n` +
+    `📊 Kuota Hari Ini: ${dailyQuotaLabel}\n` +
+    `🗓️ Kuota Bulan Ini: ${monthlyQuotaLabel}\n` +
     `🎁 Bonus Kuota Tambahan: +${profile.bonusQuota} lagu\n\n` +
     `Gunakan /invite untuk menambah kuota gratis atau /upgrade untuk akses VIP!`;
 

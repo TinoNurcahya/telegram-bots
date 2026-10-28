@@ -67,12 +67,13 @@ graph TD
 - Anti-Tamper & Sybil Defense: Mencegah self-referral (`inviter === invitee`) dan hanya berlaku untuk pendaftar baru.
 
 ### 3.5 Audio Bitrate & Quality Differentiation
-- **Free Tier (160kbps Standard)**: Unduh audio kualitas standar 160kbps dengan kuota 5 lagu per 24 jam.
-- **Premium VIP & Free Trial (320kbps Studio HD)**: Unduh audio kualitas rekaman studio 320kbps dengan kuota 50 lagu per siklus 12 jam.
-- **Interactive HD Upsell Modal**: Saat pengguna Free menekan tombol `[ 💎 Unduh HD (320kbps) ]`, bot tidak memotong kuota harian, melainkan menampilkan kartu edukasi audio studio dengan tombol aktivasi Free Trial 7 Hari, menu Stars, dan opsi `[ 📥 Tetap Unduh Versi 160kbps ]`.
+- **Free Tier (160kbps Standard)**: Unduh audio kualitas standar 160kbps dengan kuota 5 lagu per hari (maksimal 50 lagu per bulan, reset 07:00 WIB).
+- **Free Trial 7 Hari (320kbps Studio HD)**: Unduh audio kualitas rekaman studio 320kbps dengan kuota 10 lagu per hari (maksimal 50 lagu selama masa trial).
+- **Premium VIP (320kbps Studio HD)**: Unduh audio kualitas rekaman studio 320kbps dengan kuota 15 lagu per hari (maksimal 150 lagu per bulan, reset 07:00 WIB).
+- **Interactive HD Upsell Modal**: Saat pengguna Free menekan tombol `[ 💎 Unduh HD (320kbps) ]`, bot tidak memotong kuota, melainkan menampilkan kartu edukasi audio studio dengan tombol aktivasi Free Trial 7 Hari, menu Stars, dan opsi `[ 📥 Tetap Unduh Versi 160kbps ]`.
 
 ### 3.6 Extra Quota Boost (Instant Top-Up)
-Saat kuota 50 lagu per 12 jam habis, pengguna VIP dapat membeli kuota instan tanpa menunggu siklus reset:
+Saat kuota harian habis, pengguna VIP dapat membeli kuota instan tanpa menunggu siklus reset:
 - `boost_25`: **+25 Lagu Instan (10 Stars)**
 - `boost_50`: **+50 Lagu Instan (18 Stars)**
 

@@ -9,6 +9,7 @@ export interface BotConfig {
   adminId: number;
   isProduction: boolean;
   streamResolverUrl: string;
+  rapidApiKey: string;
 }
 
 export function loadConfig(): BotConfig {
@@ -19,6 +20,7 @@ export function loadConfig(): BotConfig {
   const adminId = parseInt(process.env.ADMIN_ID || '0', 10);
   const isProduction = process.env.NODE_ENV === 'production';
   const streamResolverUrl = process.env.STREAM_RESOLVER_URL || '';
+  const rapidApiKey = process.env.RAPIDAPI_KEY || '';
 
   return {
     botToken,
@@ -28,5 +30,6 @@ export function loadConfig(): BotConfig {
     adminId,
     isProduction,
     streamResolverUrl,
+    rapidApiKey,
   };
 }

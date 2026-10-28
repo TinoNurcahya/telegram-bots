@@ -4,6 +4,9 @@ export interface QuotaCheckResult {
   canDownload: boolean;
   usedToday: number;
   maxLimit: number;
+  usedThisMonth: number;
+  maxMonthlyLimit: number;
+  limitReason?: 'daily' | 'monthly';
   isPremium: boolean;
   daysLeft?: number;
   resetIntervalHours?: number;
@@ -12,19 +15,19 @@ export interface QuotaCheckResult {
 export const PLANS: Record<string, { title: string; description: string; stars: number; days: number }> = {
   plan_1m: {
     title: 'Donasi Operasional Server (Supporter 1 Bulan)',
-    description: 'Donasi pemeliharaan server 30 hari. Apresiasi: Status Supporter VIP 50 lagu/12 jam & HD 320kbps.',
+    description: 'Donasi pemeliharaan server 30 hari. Apresiasi: Status Supporter VIP 15 lagu/hari (maks 150 lagu/bulan) & HD 320kbps.',
     stars: 25,
     days: 30,
   },
   plan_3m: {
     title: 'Donasi Operasional Server (Supporter 3 Bulan)',
-    description: 'Donasi pemeliharaan server 90 hari. Apresiasi: Status Supporter VIP 50 lagu/12 jam & HD 320kbps.',
+    description: 'Donasi pemeliharaan server 90 hari. Apresiasi: Status Supporter VIP 15 lagu/hari (maks 150 lagu/bulan) & HD 320kbps.',
     stars: 60,
     days: 90,
   },
   plan_lifetime: {
     title: 'Donasi Operasional Server (Lifetime Backer)',
-    description: 'Donasi pemeliharaan permanen. Apresiasi: Status Supporter VIP seumur hidup.',
+    description: 'Donasi pemeliharaan permanen. Apresiasi: Status Supporter VIP 15 lagu/hari (maks 150 lagu/bulan) seumur hidup & HD 320kbps.',
     stars: 99,
     days: 9999,
   },
@@ -50,17 +53,18 @@ export class UserService {
 
   /**
    * Get quota cycle key.
-   * - Free users: "YYYY-MM-DD" (24-hour cycle, resets at 00:00 UTC / 07:00 WIB)
-   * - Premium users: "YYYY-MM-DD-00" or "YYYY-MM-DD-12" (12-hour cycle, resets at 07:00 WIB and 19:00 WIB)
+   * Resets daily at 00:00 UTC (07:00 WIB) for all users.
    */
-  public getQuotaCycleKey(isPremium: boolean, date: Date = new Date()): string {
-    const isoDate = date.toISOString().split('T')[0];
-    if (!isPremium) {
-      return isoDate;
-    }
-    const utcHours = date.getUTCHours();
-    const cycleSlot = utcHours < 12 ? '00' : '12';
-    return `${isoDate}-${cycleSlot}`;
+  public getQuotaCycleKey(_isPremium: boolean = false, date: Date = new Date()): string {
+    return date.toISOString().split('T')[0];
+  }
+
+  /**
+   * Get monthly quota cycle key (YYYY-MM).
+   * Resets on the 1st of every month.
+   */
+  public getMonthCycleKey(date: Date = new Date()): string {
+    return date.toISOString().slice(0, 7);
   }
 
   public async ensureUser(telegramId: number, username?: string, firstName?: string): Promise<UserRecord> {
@@ -109,6 +113,8 @@ export class UserService {
         canDownload: true,
         usedToday: profile.dailyDownloadCount || 0,
         maxLimit: 999999,
+        usedThisMonth: profile.monthlyDownloadCount || 0,
+        maxMonthlyLimit: 999999,
         isPremium: true,
         daysLeft: 9999,
         resetIntervalHours: 0,
@@ -116,29 +122,43 @@ export class UserService {
     }
 
     const cycleKey = this.getQuotaCycleKey(profile.isPremium);
-    const usedInCycle = profile.dailyDownloadDate === cycleKey ? profile.dailyDownloadCount : 0;
+    const monthKey = this.getMonthCycleKey();
+    const usedInDay = profile.dailyDownloadDate === cycleKey ? profile.dailyDownloadCount : 0;
+    const usedInMonth = profile.monthlyDownloadDate === monthKey ? (profile.monthlyDownloadCount || 0) : 0;
+    const bonus = profile.bonusQuota || 0;
+
+    let baseDailyLimit = 5;
+    let baseMonthlyLimit = 50;
 
     if (profile.isPremium) {
-      // 50 songs per 12-hour cycle + bonus quota
-      const maxLimit = 50 + (profile.bonusQuota || 0);
-      return {
-        canDownload: usedInCycle < maxLimit,
-        usedToday: usedInCycle,
-        maxLimit,
-        isPremium: true,
-        daysLeft: profile.daysLeft,
-        resetIntervalHours: 12,
-      };
+      const isTrial = profile.premiumTier === 'trial_7d';
+      baseDailyLimit = isTrial ? 10 : 15;
+      baseMonthlyLimit = isTrial ? 50 : 150;
     }
 
-    // Free users: 5 songs per 24 hours + bonus quota
-    const maxLimit = 5 + (profile.bonusQuota || 0);
+    const maxLimit = baseDailyLimit + bonus;
+    const maxMonthlyLimit = baseMonthlyLimit + bonus;
+
+    let canDownload = true;
+    let limitReason: 'daily' | 'monthly' | undefined;
+
+    if (usedInDay >= maxLimit) {
+      canDownload = false;
+      limitReason = 'daily';
+    } else if (usedInMonth >= maxMonthlyLimit) {
+      canDownload = false;
+      limitReason = 'monthly';
+    }
 
     return {
-      canDownload: usedInCycle < maxLimit,
-      usedToday: usedInCycle,
+      canDownload,
+      usedToday: usedInDay,
       maxLimit,
-      isPremium: false,
+      usedThisMonth: usedInMonth,
+      maxMonthlyLimit,
+      limitReason,
+      isPremium: profile.isPremium,
+      daysLeft: profile.daysLeft,
       resetIntervalHours: 24,
     };
   }
@@ -170,7 +190,7 @@ export class UserService {
     if (claimed) {
       return {
         success: true,
-        message: 'Selamat! Free Trial 7 Hari berhasil diaktifkan. Anda kini menikmati unduhan tanpa batas!',
+        message: 'Selamat! Free Trial 7 Hari berhasil diaktifkan. Anda kini menikmati 10 lagu/hari (maks 50 lagu selama masa trial) & audio HD 320kbps!',
       };
     }
 
@@ -236,12 +256,23 @@ export class UserService {
     return this.repo.getGlobalStats();
   }
 
-  public async getAudioCache(trackId: string | number, quality: string): Promise<string | null> {
-    return this.repo.getAudioCache(trackId, quality);
+  public async getAudioCache(
+    trackId: string | number,
+    quality: string,
+    title?: string,
+    artist?: string
+  ): Promise<string | null> {
+    return this.repo.getAudioCache(trackId, quality, title, artist);
   }
 
-  public async saveAudioCache(trackId: string | number, quality: string, fileId: string): Promise<void> {
-    return this.repo.saveAudioCache(trackId, quality, fileId);
+  public async saveAudioCache(
+    trackId: string | number,
+    quality: string,
+    fileId: string,
+    title?: string,
+    artist?: string
+  ): Promise<void> {
+    return this.repo.saveAudioCache(trackId, quality, fileId, title, artist);
   }
 
   public async recordPayment(chargeId: string, telegramId: number, payload: string, amount: number): Promise<boolean> {

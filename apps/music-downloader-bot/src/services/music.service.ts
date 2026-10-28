@@ -4,7 +4,10 @@ import { TrackInfo } from '../types/music.js';
 const JIOSAAVN_KEY = '38346591';
 
 export class MusicService {
-  constructor(private readonly streamResolverUrl: string = '') {}
+  constructor(
+    private readonly streamResolverUrl: string = '',
+    private readonly rapidApiKey: string = ''
+  ) {}
 
   /**
    * Clean titles by removing promotional or metadata artifacts (feat, live, remaster, official, etc.)
@@ -162,6 +165,7 @@ export class MusicService {
         if (!Array.isArray(results) || results.length === 0) continue;
 
         const targetWords = cleanTitle.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+        const artistWords = cleanArtist.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
 
         for (const item of results) {
           const itemTitle = (item.title || '').toLowerCase();
@@ -169,7 +173,10 @@ export class MusicService {
             ? targetWords.some((w) => itemTitle.includes(w))
             : itemTitle.includes(cleanTitle.toLowerCase());
 
-          if (!isTitleMatch) {
+          const itemArtist = (item.subtitle || item.more_info?.singers || '').toLowerCase();
+          const isArtistMatch = !cleanArtist || artistWords.length === 0 || artistWords.some((w) => itemArtist.includes(w));
+
+          if (!isTitleMatch || !isArtistMatch) {
             continue;
           }
 
@@ -243,10 +250,78 @@ export class MusicService {
   }
 
   /**
+   * Search YouTube for the best matching video ID via public lightweight scraping.
+   */
+  public async searchYouTubeVideoId(query: string): Promise<string | null> {
+    try {
+      const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+      const res = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (!res.ok) return null;
+
+      const html = await res.text();
+      const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+      return match ? match[1] : null;
+    } catch (err) {
+      console.warn('YouTube search scraping failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Resolve direct MP3 audio stream URL via RapidAPI YouTube-to-MP3 (youtube-mp36).
+   */
+  public async resolveViaRapidApi(
+    cleanTitle: string,
+    cleanArtist: string
+  ): Promise<string | null> {
+    if (!this.rapidApiKey) {
+      return null;
+    }
+
+    try {
+      const query = `${cleanTitle} ${cleanArtist} audio`.trim();
+      const videoId = await this.searchYouTubeVideoId(query);
+      if (!videoId) {
+        return null;
+      }
+
+      const apiUrl = `https://youtube-mp36.p.rapidapi.com/dl?id=${videoId}`;
+      const res = await fetch(apiUrl, {
+        headers: {
+          'x-rapidapi-host': 'youtube-mp36.p.rapidapi.com',
+          'x-rapidapi-key': this.rapidApiKey,
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = (await res.json()) as any;
+      if (data?.status === 'ok' && typeof data?.link === 'string' && data.link.startsWith('http')) {
+        return data.link;
+      }
+    } catch (err) {
+      console.warn('RapidAPI stream resolution failed:', err);
+    }
+
+    return null;
+  }
+
+  /**
    * Resolve full 320kbps/160kbps audio stream URL using multi-provider hybrid pipeline.
    * Priority:
    * 1. JioSaavn (Fast, high-quality direct CDN if matched)
-   * 2. External Audio Stream Resolver (if STREAM_RESOLVER_URL is configured)
+   * 2. RapidAPI YouTube-to-MP3 (Guaranteed full track for any song!)
+   * 3. External Audio Stream Resolver (if STREAM_RESOLVER_URL is configured)
    */
   public async resolveFullAudioStream(
     title: string,
@@ -266,7 +341,19 @@ export class MusicService {
       console.warn('JioSaavn stream resolution failed:', err);
     }
 
-    // 2. Secondary: External Audio Stream Resolver
+    // 2. Secondary: RapidAPI YouTube-to-MP3
+    if (this.rapidApiKey) {
+      try {
+        const rapidUrl = await this.resolveViaRapidApi(cleanTitle, cleanArtist);
+        if (rapidUrl) {
+          return rapidUrl;
+        }
+      } catch (err) {
+        console.warn('RapidAPI resolution failed:', err);
+      }
+    }
+
+    // 3. Tertiary: External Audio Stream Resolver
     if (this.streamResolverUrl) {
       try {
         const externalUrl = await this.resolveViaExternalResolver(cleanTitle, cleanArtist, quality);

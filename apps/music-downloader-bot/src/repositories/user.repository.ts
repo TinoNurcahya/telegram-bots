@@ -7,6 +7,8 @@ export interface UserRecord {
   totalDownloads: number;
   dailyDownloadCount: number;
   dailyDownloadDate: string; // "YYYY-MM-DD"
+  monthlyDownloadCount?: number;
+  monthlyDownloadDate?: string; // "YYYY-MM"
   bonusQuota: number;
   isPremium: boolean;
   premiumTier?: string;
@@ -34,8 +36,8 @@ export interface IUserRepository {
   claimTrial(telegramId: number, days: number): Promise<boolean>;
   addReferral(inviterId: number, inviteeId: number): Promise<boolean>;
   getGlobalStats(): Promise<GlobalStats>;
-  getAudioCache(trackId: string | number, quality: string): Promise<string | null>;
-  saveAudioCache(trackId: string | number, quality: string, fileId: string): Promise<void>;
+  getAudioCache(trackId: string | number, quality: string, title?: string, artist?: string): Promise<string | null>;
+  saveAudioCache(trackId: string | number, quality: string, fileId: string, title?: string, artist?: string): Promise<void>;
   recordPayment(chargeId: string, telegramId: number, payload: string, amount: number): Promise<boolean>;
 }
 
@@ -66,6 +68,8 @@ export class MemoryUserRepository implements IUserRepository {
       totalDownloads: 0,
       dailyDownloadCount: 0,
       dailyDownloadDate: '',
+      monthlyDownloadCount: 0,
+      monthlyDownloadDate: '',
       bonusQuota: 0,
       isPremium: false,
       hasUsedTrial: false,
@@ -86,12 +90,20 @@ export class MemoryUserRepository implements IUserRepository {
       user = await this.upsertUser(telegramId);
     }
 
+    const monthStr = todayStr.slice(0, 7);
     user.totalDownloads += 1;
     if (user.dailyDownloadDate !== todayStr) {
       user.dailyDownloadDate = todayStr;
       user.dailyDownloadCount = 1;
     } else {
       user.dailyDownloadCount += 1;
+    }
+
+    if (user.monthlyDownloadDate !== monthStr) {
+      user.monthlyDownloadDate = monthStr;
+      user.monthlyDownloadCount = 1;
+    } else {
+      user.monthlyDownloadCount = (user.monthlyDownloadCount || 0) + 1;
     }
 
     return user.dailyDownloadCount;
@@ -170,12 +182,39 @@ export class MemoryUserRepository implements IUserRepository {
     };
   }
 
-  public async getAudioCache(trackId: string | number, quality: string): Promise<string | null> {
-    return this.audioCache.get(`${trackId}:${quality}`) || null;
+  private normalizeCacheSlug(title?: string, artist?: string): string {
+    if (!title) return '';
+    return `${title}_${artist || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
   }
 
-  public async saveAudioCache(trackId: string | number, quality: string, fileId: string): Promise<void> {
+  public async getAudioCache(
+    trackId: string | number,
+    quality: string,
+    title?: string,
+    artist?: string
+  ): Promise<string | null> {
+    const direct = this.audioCache.get(`${trackId}:${quality}`);
+    if (direct) return direct;
+
+    const slug = this.normalizeCacheSlug(title, artist);
+    if (slug) {
+      return this.audioCache.get(`slug:${slug}:${quality}`) || null;
+    }
+    return null;
+  }
+
+  public async saveAudioCache(
+    trackId: string | number,
+    quality: string,
+    fileId: string,
+    title?: string,
+    artist?: string
+  ): Promise<void> {
     this.audioCache.set(`${trackId}:${quality}`, fileId);
+    const slug = this.normalizeCacheSlug(title, artist);
+    if (slug) {
+      this.audioCache.set(`slug:${slug}:${quality}`, fileId);
+    }
   }
 
   public async recordPayment(chargeId: string, _telegramId: number, _payload: string, _amount: number): Promise<boolean> {
@@ -215,6 +254,8 @@ export class PostgresUserRepository implements IUserRepository {
           total_downloads INTEGER DEFAULT 0,
           daily_download_count INTEGER DEFAULT 0,
           daily_download_date TEXT DEFAULT '',
+          monthly_download_count INTEGER DEFAULT 0,
+          monthly_download_date TEXT DEFAULT '',
           bonus_quota INTEGER DEFAULT 0,
           is_premium BOOLEAN DEFAULT FALSE,
           premium_tier TEXT DEFAULT '',
@@ -224,6 +265,12 @@ export class PostgresUserRepository implements IUserRepository {
           created_at TEXT DEFAULT '',
           last_active TEXT DEFAULT ''
         );
+      `;
+      await this.sql`
+        ALTER TABLE music_users ADD COLUMN IF NOT EXISTS monthly_download_count INTEGER DEFAULT 0;
+      `;
+      await this.sql`
+        ALTER TABLE music_users ADD COLUMN IF NOT EXISTS monthly_download_date TEXT DEFAULT '';
       `;
       await this.sql`
         CREATE TABLE IF NOT EXISTS music_referrals (
@@ -289,6 +336,8 @@ export class PostgresUserRepository implements IUserRepository {
         totalDownloads: Number(r.total_downloads || 0),
         dailyDownloadCount: Number(r.daily_download_count || 0),
         dailyDownloadDate: r.daily_download_date || '',
+        monthlyDownloadCount: Number(r.monthly_download_count || 0),
+        monthlyDownloadDate: r.monthly_download_date || '',
         bonusQuota: Number(r.bonus_quota || 0),
         isPremium: Boolean(r.is_premium),
         premiumTier: r.premium_tier,
@@ -310,16 +359,26 @@ export class PostgresUserRepository implements IUserRepository {
   public async incrementDailyDownload(telegramId: number, todayStr: string): Promise<number> {
     await this.ensureSchema();
     const now = new Date().toISOString();
+    const monthStr = todayStr.slice(0, 7);
     try {
       const rows = (await this.sql`
-        INSERT INTO music_users (telegram_id, daily_download_date, daily_download_count, total_downloads, created_at, last_active)
-        VALUES (${telegramId}, ${todayStr}, 1, 1, ${now}, ${now})
+        INSERT INTO music_users (
+          telegram_id, daily_download_date, daily_download_count,
+          monthly_download_date, monthly_download_count,
+          total_downloads, created_at, last_active
+        )
+        VALUES (${telegramId}, ${todayStr}, 1, ${monthStr}, 1, 1, ${now}, ${now})
         ON CONFLICT (telegram_id) DO UPDATE SET
           daily_download_count = CASE 
             WHEN music_users.daily_download_date = ${todayStr} THEN music_users.daily_download_count + 1 
             ELSE 1 
           END,
           daily_download_date = ${todayStr},
+          monthly_download_count = CASE
+            WHEN music_users.monthly_download_date = ${monthStr} THEN COALESCE(music_users.monthly_download_count, 0) + 1
+            ELSE 1
+          END,
+          monthly_download_date = ${monthStr},
           total_downloads = music_users.total_downloads + 1,
           last_active = ${now}
         RETURNING daily_download_count;
@@ -434,12 +493,27 @@ export class PostgresUserRepository implements IUserRepository {
     }
   }
 
-  public async getAudioCache(trackId: string | number, quality: string): Promise<string | null> {
+  private normalizeCacheSlug(title?: string, artist?: string): string {
+    if (!title) return '';
+    return `${title}_${artist || ''}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  public async getAudioCache(
+    trackId: string | number,
+    quality: string,
+    title?: string,
+    artist?: string
+  ): Promise<string | null> {
     await this.ensureSchema();
     try {
       const key = `${trackId}:${quality}`;
+      const slug = this.normalizeCacheSlug(title, artist);
+      const slugKey = slug ? `slug:${slug}:${quality}` : '';
+
       const rows = (await this.sql`
-        SELECT file_id FROM music_audio_cache WHERE id = ${key} LIMIT 1;
+        SELECT file_id FROM music_audio_cache 
+        WHERE id = ${key} OR (id = ${slugKey} AND ${slugKey} != '')
+        LIMIT 1;
       `) as any[];
       return rows && rows.length > 0 ? rows[0].file_id : null;
     } catch (err) {
@@ -448,16 +522,33 @@ export class PostgresUserRepository implements IUserRepository {
     }
   }
 
-  public async saveAudioCache(trackId: string | number, quality: string, fileId: string): Promise<void> {
+  public async saveAudioCache(
+    trackId: string | number,
+    quality: string,
+    fileId: string,
+    title?: string,
+    artist?: string
+  ): Promise<void> {
     await this.ensureSchema();
     const key = `${trackId}:${quality}`;
+    const slug = this.normalizeCacheSlug(title, artist);
+    const slugKey = slug ? `slug:${slug}:${quality}` : '';
     const now = new Date().toISOString();
+
     try {
       await this.sql`
         INSERT INTO music_audio_cache (id, file_id, created_at)
         VALUES (${key}, ${fileId}, ${now})
         ON CONFLICT (id) DO UPDATE SET file_id = EXCLUDED.file_id;
       `;
+
+      if (slugKey) {
+        await this.sql`
+          INSERT INTO music_audio_cache (id, file_id, created_at)
+          VALUES (${slugKey}, ${fileId}, ${now})
+          ON CONFLICT (id) DO UPDATE SET file_id = EXCLUDED.file_id;
+        `;
+      }
     } catch (err) {
       console.warn('saveAudioCache error:', err);
     }

@@ -20,6 +20,12 @@ describe('Admin Handler & Audio Cache Unit Tests', () => {
     // Save audio file_id for 320kbps
     await service.saveAudioCache(12345, '320', 'tg_audio_file_id_hd_320');
     expect(await service.getAudioCache(12345, '320')).toBe('tg_audio_file_id_hd_320');
+
+    // Dual-key caching: retrieval by different trackId but same title and artist
+    await service.saveAudioCache(99991, '160', 'tg_file_id_tulus', 'Hati Hati di Jalan', 'Tulus');
+    // Different ID (e.g. from album search), but exact same song title & artist
+    const hitBySlug = await service.getAudioCache(99992, '160', 'Hati Hati di Jalan', 'Tulus');
+    expect(hitBySlug).toBe('tg_file_id_tulus');
   });
 
   it('should compute accurate global statistics across users and downloads', async () => {

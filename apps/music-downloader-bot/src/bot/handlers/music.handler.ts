@@ -366,11 +366,17 @@ export function registerMusicHandlers(
 
           // VIP quota limit reached
           if (profile.isPremium) {
-            const limitNotice =
-              `⏳ BATAS KUOTA SIKLUS 12 JAM TERCAPAI (${quota.maxLimit}/${quota.maxLimit} Lagu)\n\n` +
-              `Sebagai member VIP, kuota Anda akan kembali di-reset otomatis pada pukul 07:00 WIB / 19:00 WIB (siklus 12 jam).\n\n` +
-              `⚡ INGIN LANJUT MENGUNDUH SEKARANG?\n` +
-              `Anda dapat menambah kuota unduhan instan tanpa harus menunggu siklus reset:`;
+            const isMonthly = quota.limitReason === 'monthly';
+            const limitNotice = isMonthly
+              ? `⏳ BATAS KUOTA BULANAN TERCAPAI (${quota.usedThisMonth}/${quota.maxMonthlyLimit} Lagu)\n\n` +
+                `Sebagai member VIP, Anda telah mencapai batas kuota bulanan (${quota.maxMonthlyLimit} lagu/bulan).\n` +
+                `Kuota bulanan akan di-reset otomatis pada awal bulan depan.\n\n` +
+                `⚡ INGIN LANJUT MENGUNDUH SEKARANG?\n` +
+                `Anda dapat menambah kuota unduhan instan (+25 atau +50 lagu) tanpa harus menunggu reset:`
+              : `⏳ BATAS KUOTA HARIAN TERCAPAI (${quota.maxLimit}/${quota.maxLimit} Lagu)\n\n` +
+                `Sebagai member VIP, kuota Anda akan kembali di-reset otomatis besok pada pukul 07:00 WIB (00:00 UTC).\n\n` +
+                `⚡ INGIN LANJUT MENGUNDUH SEKARANG?\n` +
+                `Anda dapat menambah kuota unduhan instan tanpa harus menunggu siklus reset:`;
 
             await ctx.reply(limitNotice, {
               reply_markup: buildPremiumQuotaLimitKeyboard(),
@@ -379,15 +385,24 @@ export function registerMusicHandlers(
           }
 
           // Free user quota limit reached
-          const limitNotice =
-            `⏳ BATAS UNDUHAN HARIAN TERCAPAI (${quota.maxLimit}/${quota.maxLimit} Lagu Gratis)\n\n` +
-            `Anda telah menggunakan seluruh kuota gratis harian Anda (${quota.maxLimit} lagu).\n` +
-            `Kuota unduhan akan di-reset otomatis besok pukul 07:00 WIB (00:00 UTC).\n\n` +
-            `🌟 FASILITAS PREMIUM PASS:\n` +
-            `✨ Unduh hingga 50 lagu per siklus 12 jam (reset 2x sehari)\n` +
-            `🎧 Kualitas audio HD 320kbps\n` +
-            `📜 Akses lirik dan fitur inline query sepuasnya\n\n` +
-            `Upgrade sekarang dengan Telegram Stars (XTR) atau klaim Free Trial 7 Hari!`;
+          const isMonthly = quota.limitReason === 'monthly';
+          const limitNotice = isMonthly
+            ? `⏳ BATAS KUOTA BULANAN TERCAPAI (${quota.usedThisMonth}/${quota.maxMonthlyLimit} Lagu Gratis)\n\n` +
+              `Anda telah menggunakan seluruh kuota gratis bulanan Anda (${quota.maxMonthlyLimit} lagu/bulan).\n` +
+              `Kuota akan di-reset otomatis pada awal bulan depan.\n\n` +
+              `🌟 FASILITAS PREMIUM PASS:\n` +
+              `✨ Kuota longgar 15 lagu per hari (maks 150 lagu/bulan)\n` +
+              `🎧 Kualitas audio HD 320kbps\n` +
+              `📜 Akses lirik dan fitur inline query sepuasnya\n\n` +
+              `Upgrade sekarang dengan Telegram Stars (XTR) atau klaim Free Trial 7 Hari!`
+            : `⏳ BATAS UNDUHAN HARIAN TERCAPAI (${quota.maxLimit}/${quota.maxLimit} Lagu Gratis)\n\n` +
+              `Anda telah menggunakan seluruh kuota gratis harian Anda (${quota.maxLimit} lagu).\n` +
+              `Kuota unduhan akan di-reset otomatis besok pukul 07:00 WIB (00:00 UTC).\n\n` +
+              `🌟 FASILITAS PREMIUM PASS:\n` +
+              `✨ Unduh hingga 15 lagu per hari (10 lagu pada masa Free Trial)\n` +
+              `🎧 Kualitas audio HD 320kbps\n` +
+              `📜 Akses lirik dan fitur inline query sepuasnya\n\n` +
+              `Upgrade sekarang dengan Telegram Stars (XTR) atau klaim Free Trial 7 Hari!`;
 
           await ctx.reply(limitNotice, {
             reply_markup: buildQuotaLimitKeyboard(profile.hasUsedTrial),
@@ -409,7 +424,7 @@ export function registerMusicHandlers(
       // 1. Check audio file_id cache first (Instant delivery without CDN fetch)
       let cachedFileId: string | null = null;
       if (userService) {
-        cachedFileId = await userService.getAudioCache(track.id, quality);
+        cachedFileId = await userService.getAudioCache(track.id, quality, track.title, track.artist);
       }
 
       const botUsernameEscaped = ctx.me?.username ? escapeMarkdown(ctx.me.username) : 'Musicdownloader2001\\_bot';
@@ -497,7 +512,7 @@ export function registerMusicHandlers(
           // Save newly generated Telegram file_id to cache (supports both audio and document messages)
           const fileId = sentAudio?.audio?.file_id || (sentAudio as any)?.document?.file_id;
           if (fileId) {
-            await userService.saveAudioCache(track.id, quality, fileId);
+            await userService.saveAudioCache(track.id, quality, fileId, track.title, track.artist);
           }
         }
 

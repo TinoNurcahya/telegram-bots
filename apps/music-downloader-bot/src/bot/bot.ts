@@ -13,12 +13,13 @@ export function createBot(
   repository?: IUserRepository,
   databaseUrl?: string,
   adminId: number = 0,
-  streamResolverUrl: string = ''
+  streamResolverUrl: string = '',
+  rapidApiKey: string = ''
 ) {
   const bot = new Bot(token);
   const repo = repository || createUserRepository(databaseUrl);
   const userService = new UserService(repo, adminId);
-  const musicService = new MusicService(streamResolverUrl);
+  const musicService = new MusicService(streamResolverUrl, rapidApiKey);
   const lyricsService = new LyricsService();
 
   // Global Error Catcher
