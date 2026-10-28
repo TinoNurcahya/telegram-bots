@@ -4,6 +4,31 @@ import { TrackInfo } from '../types/music.js';
 const JIOSAAVN_KEY = '38346591';
 
 export class MusicService {
+  constructor(private readonly streamResolverUrl: string = '') {}
+
+  /**
+   * Clean titles by removing promotional or metadata artifacts (feat, live, remaster, official, etc.)
+   */
+  public sanitizeTitle(title: string): string {
+    if (!title) return '';
+    return title
+      .replace(/\s*[\(\[][^\)\]]*(?:feat\.?|ft\.?|featuring|with|prod\.?|official|video|audio|lyric|lyrics|remaster|live|radio edit|deluxe|version)[^\)\]]*[\)\]]/gi, '')
+      .replace(/[-–—|/\\#]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Clean artist names by removing secondary artists or featured credits.
+   */
+  public sanitizeArtist(artist: string): string {
+    if (!artist) return '';
+    return artist
+      .replace(/\s*(?:feat\.?|ft\.?|featuring|with|,|&|\+).*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   /**
    * Format seconds to MM:SS display format.
    */
@@ -105,49 +130,152 @@ export class MusicService {
   }
 
   /**
-   * Resolve full 320kbps/160kbps audio stream URL for a given song title and artist.
+   * Resolve audio stream via JioSaavn with title/artist match verification.
    */
-  public async resolveFullAudioStream(
-    title: string,
-    artist: string,
+  public async resolveViaJioSaavn(
+    cleanTitle: string,
+    cleanArtist: string,
     quality: '160' | '320' = '160'
   ): Promise<string | null> {
-    const query = `${title} ${artist}`.trim();
-    const searchUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=3&p=1&q=${encodeURIComponent(query)}`;
+    const queries = [
+      `${cleanTitle} ${cleanArtist}`.trim(),
+      cleanTitle,
+    ];
+
+    for (const q of queries) {
+      if (!q) continue;
+      const searchUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(q)}`;
+
+      try {
+        const res = await fetch(searchUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+          },
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (!res.ok) continue;
+
+        const data = (await res.json()) as any;
+        const results = data?.results || [];
+        if (!Array.isArray(results) || results.length === 0) continue;
+
+        const targetWords = cleanTitle.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+
+        for (const item of results) {
+          const itemTitle = (item.title || '').toLowerCase();
+          const isTitleMatch = targetWords.length > 0
+            ? targetWords.some((w) => itemTitle.includes(w))
+            : itemTitle.includes(cleanTitle.toLowerCase());
+
+          if (!isTitleMatch) {
+            continue;
+          }
+
+          const encrypted = item?.more_info?.encrypted_media_url;
+          if (encrypted) {
+            const directUrl = this.decryptSaavnUrl(encrypted);
+            if (directUrl && directUrl.startsWith('http')) {
+              if (quality === '320') {
+                return directUrl.replace(/_(96|160)\.mp4/, '_320.mp4');
+              } else {
+                return directUrl.replace(/_(96|320)\.mp4/, '_160.mp4');
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`JioSaavn query attempt for "${q}" failed:`, err);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve audio stream via External Audio Stream Resolver (configured via STREAM_RESOLVER_URL).
+   */
+  public async resolveViaExternalResolver(
+    cleanTitle: string,
+    cleanArtist: string,
+    quality: '160' | '320' = '160'
+  ): Promise<string | null> {
+    if (!this.streamResolverUrl) {
+      return null;
+    }
 
     try {
-      const res = await fetch(searchUrl, {
+      const base = this.streamResolverUrl.replace(/\/+$/, '');
+      const query = `${cleanTitle} ${cleanArtist}`.trim();
+      const url = `${base}?q=${encodeURIComponent(query)}&title=${encodeURIComponent(cleanTitle)}&artist=${encodeURIComponent(cleanArtist)}&quality=${quality}`;
+
+      const res = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'MusicDownloaderBot/1.0',
         },
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10000),
       });
 
       if (!res.ok) {
         return null;
       }
 
-      const data = (await res.json()) as any;
-      const results = data?.results || [];
-
-      for (const item of results) {
-        const encrypted = item?.more_info?.encrypted_media_url;
-        if (encrypted) {
-          const directUrl = this.decryptSaavnUrl(encrypted);
-          if (directUrl && directUrl.startsWith('http')) {
-            if (quality === '320') {
-              // Upgrade to Studio HD 320kbps
-              return directUrl.replace(/_(96|160)\.mp4/, '_320.mp4');
-            } else {
-              // Standard 160kbps
-              return directUrl.replace(/_(96|320)\.mp4/, '_160.mp4');
-            }
-          }
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = (await res.json()) as any;
+        const streamUrl = data?.url || data?.downloadUrl || data?.streamUrl || data?.link || data?.audioUrl;
+        if (typeof streamUrl === 'string' && streamUrl.startsWith('http')) {
+          return streamUrl;
+        }
+      } else {
+        const text = (await res.text()).trim();
+        if (text.startsWith('http')) {
+          return text;
         }
       }
     } catch (err) {
-      console.warn('Failed to resolve full audio stream via JioSaavn:', err);
+      console.warn('External stream resolver error:', err);
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve full 320kbps/160kbps audio stream URL using multi-provider hybrid pipeline.
+   * Priority:
+   * 1. JioSaavn (Fast, high-quality direct CDN if matched)
+   * 2. External Audio Stream Resolver (if STREAM_RESOLVER_URL is configured)
+   */
+  public async resolveFullAudioStream(
+    title: string,
+    artist: string,
+    quality: '160' | '320' = '160'
+  ): Promise<string | null> {
+    const cleanTitle = this.sanitizeTitle(title);
+    const cleanArtist = this.sanitizeArtist(artist);
+
+    // 1. Primary: JioSaavn
+    try {
+      const saavnUrl = await this.resolveViaJioSaavn(cleanTitle, cleanArtist, quality);
+      if (saavnUrl) {
+        return saavnUrl;
+      }
+    } catch (err) {
+      console.warn('JioSaavn stream resolution failed:', err);
+    }
+
+    // 2. Secondary: External Audio Stream Resolver
+    if (this.streamResolverUrl) {
+      try {
+        const externalUrl = await this.resolveViaExternalResolver(cleanTitle, cleanArtist, quality);
+        if (externalUrl) {
+          return externalUrl;
+        }
+      } catch (err) {
+        console.warn('External resolver resolution failed:', err);
+      }
     }
 
     return null;

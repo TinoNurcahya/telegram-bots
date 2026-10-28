@@ -10,7 +10,7 @@ if (!config.botToken) {
   process.exit(1);
 }
 
-const { bot } = createBot(config.botToken, undefined, config.databaseUrl, config.adminId);
+const { bot } = createBot(config.botToken, undefined, config.databaseUrl, config.adminId, config.streamResolverUrl);
 
 console.log('🎵 Memulai Music Downloader Bot dalam mode Long Polling lokal...');
 bot.start({

@@ -446,31 +446,33 @@ export function registerMusicHandlers(
         }
       }
 
-      // 2. Fallback to resolving stream URL from CDN
+      // 2. Resolve full audio stream URL
       try {
         const fullStreamUrl = await musicService.resolveFullAudioStream(track.title, track.artist, quality);
-        const finalUrl = fullStreamUrl || track.previewUrl;
-        const isPreview = !fullStreamUrl && !!track.previewUrl;
 
-        if (!finalUrl) {
+        // Explicit check: If full audio cannot be resolved, DO NOT send 30s preview and DO NOT deduct quota!
+        if (!fullStreamUrl) {
+          const failKeyboard = track.previewUrl
+            ? new InlineKeyboard().text('🎧 Putar Cuplikan (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
+            : undefined;
+
           await ctx.api.editMessageText(
             ctx.chat!.id,
             downloadNotice.message_id,
-            '⚠️ Maaf, link streaming audio untuk lagu ini sedang tidak tersedia dari penyedia CDN.'
+            `⚠️ *Audio Lagu Penuh Belum Tersedia*\n\n` +
+            `Maaf, file audio full untuk *${safeTitle}* — *${safeArtist}* belum dapat dialirkan oleh server streaming saat ini.\n\n` +
+            `ℹ️ *Kuota unduhan Anda TIDAK dipotong* untuk percobaan ini. Anda tetap dapat mendengarkan cuplikan pratinjau resmi 30 detik melalui tombol di bawah:`,
+            {
+              parse_mode: 'Markdown',
+              reply_markup: failKeyboard,
+            }
           );
           return;
         }
 
-        let qualityCaption = '';
-        if (quality === '320') {
-          qualityCaption = `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @${botUsernameEscaped}`;
-        } else {
-          qualityCaption = `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
-        }
-
-        const note = isPreview
-          ? `\n\n*(Tersedia format preview resmi 30s)*\n🤖 Didengarkan via @${botUsernameEscaped}`
-          : qualityCaption;
+        const qualityCaption = quality === '320'
+          ? `\n\n💎 *Kualitas:* Studio HD (320kbps) — VIP Member ✨\n🤖 Diunduh via @${botUsernameEscaped}`
+          : `\n\n🎧 *Kualitas:* Standar (160kbps)\n💡 *Tips:* Mau audio Studio HD 320kbps tanpa kuota? Ketik /upgrade\n🤖 Diunduh via @${botUsernameEscaped}`;
 
         let thumbnailInput: InputFile | undefined = undefined;
         if (track.coverUrl && track.coverUrl.startsWith('http')) {
@@ -481,11 +483,11 @@ export function registerMusicHandlers(
           }
         }
 
-        const sentAudio = await ctx.replyWithAudio(finalUrl, {
+        const sentAudio = await ctx.replyWithAudio(fullStreamUrl, {
           title: track.title,
           performer: track.artist,
           thumbnail: thumbnailInput,
-          caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${note}`,
+          caption: `🎵 *${safeTitle}*\n🎙️ *${safeArtist}*\n💿 *Album:* ${safeAlbum}${qualityCaption}`,
           parse_mode: 'Markdown',
         });
 
@@ -494,7 +496,7 @@ export function registerMusicHandlers(
 
           // Save newly generated Telegram file_id to cache (supports both audio and document messages)
           const fileId = sentAudio?.audio?.file_id || (sentAudio as any)?.document?.file_id;
-          if (!isPreview && fileId) {
+          if (fileId) {
             await userService.saveAudioCache(track.id, quality, fileId);
           }
         }
@@ -506,14 +508,17 @@ export function registerMusicHandlers(
       } catch (err) {
         console.error('Audio stream delivery error:', err);
         const failKeyboard = track.previewUrl
-          ? new InlineKeyboard().text('🎧 Putar Preview (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
+          ? new InlineKeyboard().text('🎧 Putar Cuplikan (30s)', `prev:${index}:${encodeURIComponent(query)}`).row()
           : undefined;
 
         await ctx.api.editMessageText(
           ctx.chat!.id,
           downloadNotice.message_id,
-          '⚠️ Gagal mengalirkan audio lagu penuh ke Telegram. Link CDN mungkin mengalami kendala jaringan atau pembatasan sementara. Anda dapat mencoba mendengarkan cuplikan pratinjau audio 30 detik di bawah ini:',
-          { reply_markup: failKeyboard }
+          '⚠️ Terjadi kendala teknis saat mengalirkan audio ke Telegram. Kuota Anda tidak dipotong. Silakan coba lagi beberapa saat lagi atau dengarkan cuplikan pratinjau audio 30 detik di bawah ini:',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: failKeyboard,
+          }
         );
       }
       return;

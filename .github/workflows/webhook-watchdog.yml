@@ -26,12 +26,18 @@ jobs:
 
       - name: Run Webhook Failover Watchdog
         env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET || 'tinoCoachSecret2026' }}
+          BOT_TOKEN: ${{ secrets.SPEAKING_COACH_BOT_TOKEN || secrets.BOT_TOKEN }}
+          WEBHOOK_SECRET: ${{ secrets.SPEAKING_COACH_WEBHOOK_SECRET || secrets.WEBHOOK_SECRET || 'tinoCoachSecret2026' }}
         run: |
+          if [ -z "$BOT_TOKEN" ]; then
+            echo "::error::BOT_TOKEN or SPEAKING_COACH_BOT_TOKEN is not configured in GitHub Repository Secrets!"
+            echo "Please go to Settings > Secrets and variables > Actions > New repository secret and add BOT_TOKEN."
+            exit 1
+          fi
           python apps/speaking-coach-bot/manage_webhook.py --auto
 
       - name: Prevent GitHub Actions Scheduled Workflow Inactivity Pause
+        if: always()
         run: |
           # GitHub disables scheduled workflows after 60 days of repository inactivity (no commits).
           # If the last commit is older than 45 days, create a lightweight keepalive commit.

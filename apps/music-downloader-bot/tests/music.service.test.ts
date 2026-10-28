@@ -51,4 +51,24 @@ describe('MusicService Unit Tests', () => {
     const q320 = decrypted.replace(/_(96|160)\.mp4/, '_320.mp4');
     expect(q320).toContain('_320.mp4');
   });
+
+  it('should sanitize song titles by stripping promotional brackets and artifacts', () => {
+    expect(musicService.sanitizeTitle('Yellow (Live in Buenos Aires)')).toBe('Yellow');
+    expect(musicService.sanitizeTitle('Die With A Smile (with Bruno Mars)')).toBe('Die With A Smile');
+    expect(musicService.sanitizeTitle('Bohemian Rhapsody (2011 Remaster)')).toBe('Bohemian Rhapsody');
+    expect(musicService.sanitizeTitle('Hati-Hati di Jalan')).toBe('Hati Hati di Jalan');
+    expect(musicService.sanitizeTitle('Something Just Like This [Official Lyric Video]')).toBe('Something Just Like This');
+  });
+
+  it('should sanitize artist names by stripping featured credits', () => {
+    expect(musicService.sanitizeArtist('Coldplay feat. BTS')).toBe('Coldplay');
+    expect(musicService.sanitizeArtist('Lady Gaga, Bruno Mars')).toBe('Lady Gaga');
+    expect(musicService.sanitizeArtist('Tulus')).toBe('Tulus');
+  });
+
+  it('should return null when external resolver URL is not configured or empty', async () => {
+    const serviceWithoutResolver = new MusicService('');
+    const resolved = await serviceWithoutResolver.resolveViaExternalResolver('Test Song', 'Test Artist');
+    expect(resolved).toBeNull();
+  });
 });

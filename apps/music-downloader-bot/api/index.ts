@@ -6,7 +6,7 @@ import { loadConfig } from '../src/config/env.js';
 const config = loadConfig();
 // Use fallback token during build time or health check
 const botToken = config.botToken || '000000000:dummy_token_for_cold_boot';
-const { bot } = createBot(botToken, undefined, config.databaseUrl, config.adminId);
+const { bot } = createBot(botToken, undefined, config.databaseUrl, config.adminId, config.streamResolverUrl);
 const handleUpdate = webhookCallback(bot, 'http');
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {

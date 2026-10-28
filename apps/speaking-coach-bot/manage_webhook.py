@@ -29,8 +29,8 @@ HEALTH_ENDPOINT = "/health"
 
 def get_credentials() -> tuple[str, str]:
     """Retrieve BOT_TOKEN and WEBHOOK_SECRET from environment or local .env."""
-    bot_token = os.getenv("BOT_TOKEN")
-    webhook_secret = os.getenv("WEBHOOK_SECRET")
+    bot_token = os.getenv("SPEAKING_COACH_BOT_TOKEN") or os.getenv("BOT_TOKEN")
+    webhook_secret = os.getenv("SPEAKING_COACH_WEBHOOK_SECRET") or os.getenv("WEBHOOK_SECRET")
 
     if not bot_token:
         # Try reading from local .env if present
@@ -39,13 +39,24 @@ def get_credentials() -> tuple[str, str]:
             with open(env_path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith("BOT_TOKEN="):
-                        bot_token = line.split("=", 1)[1].strip().strip('"').strip("'")
-                    elif line.startswith("WEBHOOK_SECRET="):
-                        webhook_secret = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if line.startswith("BOT_TOKEN=") or line.startswith("SPEAKING_COACH_BOT_TOKEN="):
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            bot_token = val
+                    elif line.startswith("WEBHOOK_SECRET=") or line.startswith("SPEAKING_COACH_WEBHOOK_SECRET="):
+                        val = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if val:
+                            webhook_secret = val
 
     if not bot_token:
-        logger.error("BOT_TOKEN not found in environment variables or .env file.")
+        if os.getenv("GITHUB_ACTIONS"):
+            logger.error(
+                "BOT_TOKEN (or SPEAKING_COACH_BOT_TOKEN) is not configured in GitHub Secrets!\n"
+                "To resolve: go to GitHub Repo -> Settings -> Secrets and variables -> Actions -> New repository secret\n"
+                "and create 'BOT_TOKEN' (or 'SPEAKING_COACH_BOT_TOKEN') with your Telegram bot token."
+            )
+        else:
+            logger.error("BOT_TOKEN not found in environment variables or .env file.")
         sys.exit(1)
 
     return bot_token, webhook_secret or "tinoCoachSecret2026"
