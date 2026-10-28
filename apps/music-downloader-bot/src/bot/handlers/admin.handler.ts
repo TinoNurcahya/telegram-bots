@@ -7,7 +7,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
 
     // Security check: Only allow admin if ADMIN_ID is configured
     if (adminId > 0 && senderId !== adminId) {
-      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin bot.');
+      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
 

@@ -337,6 +337,18 @@ export function registerMusicHandlers(
     if (action === 'dl') {
       const userId = ctx.from?.id || 0;
 
+      // 0. Batas durasi maksimal 20 menit (1200 detik)
+      if (track.duration && track.duration > 1200) {
+        await ctx.reply(
+          `⚠️ *Durasi Melebihi Batas*\n\n` +
+          `Maaf, lagu ini berdurasi *${track.durationFormatted}* (lebih dari 20 menit).\n` +
+          `Bot saat ini hanya mendukung unduhan musik dengan durasi maksimal 20 menit.\n\n` +
+          `💡 _Tips: Anda dapat mendengarkan cuplikan lagu melalui tombol Pratinjau 30 Detik._`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
       // 1. Check if 320kbps Studio HD is requested
       if (userService && quality === '320') {
         const profile = await userService.getUserProfile(userId);
