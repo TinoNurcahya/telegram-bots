@@ -29,7 +29,7 @@ export function createBot(
 
   // Register Handlers
   registerMusicHandlers(bot, musicService, lyricsService, userService);
-  registerInlineHandlers(bot, musicService);
+  registerInlineHandlers(bot, musicService, userService);
   registerMonetizationHandlers(bot, userService);
   registerAdminHandlers(bot, userService, adminId);
 

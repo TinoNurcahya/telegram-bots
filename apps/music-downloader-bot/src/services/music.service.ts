@@ -111,6 +111,74 @@ export class MusicService {
   }
 
   /**
+   * Fetch track information by track ID (Deezer primary with iTunes fallback).
+   */
+  public async getTrackById(trackId: string | number): Promise<TrackInfo | null> {
+    if (!trackId) return null;
+
+    // 1. Deezer API track lookup
+    try {
+      const deezerUrl = `https://api.deezer.com/track/${encodeURIComponent(String(trackId).trim())}`;
+      const response = await fetch(deezerUrl, {
+        headers: { 'User-Agent': 'MusicDownloaderBot/1.0' },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (response.ok) {
+        const item = (await response.json()) as any;
+        if (item && item.id && !item.error) {
+          return {
+            id: item.id,
+            title: item.title_short || item.title || 'Unknown Title',
+            artist: item.artist?.name || 'Unknown Artist',
+            album: item.album?.title || 'Single',
+            duration: item.duration || 0,
+            durationFormatted: this.formatDuration(item.duration || 0),
+            coverUrl: item.album?.cover_xl || item.album?.cover_big || item.album?.cover_medium || '',
+            previewUrl: item.preview || '',
+            externalUrl: item.link || '',
+            source: 'deezer',
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`Deezer track lookup for ID "${trackId}" failed:`, err);
+    }
+
+    // 2. iTunes lookup fallback (if ID was numeric from iTunes)
+    try {
+      const itunesUrl = `https://itunes.apple.com/lookup?id=${encodeURIComponent(String(trackId).trim())}`;
+      const response = await fetch(itunesUrl, {
+        headers: { 'User-Agent': 'MusicDownloaderBot/1.0' },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as any;
+        if (data && Array.isArray(data.results) && data.results.length > 0) {
+          const item = data.results[0];
+          return {
+            id: item.trackId,
+            title: item.trackName || 'Unknown Title',
+            artist: item.artistName || 'Unknown Artist',
+            album: item.collectionName || 'Single',
+            duration: Math.round((item.trackTimeMillis || 0) / 1000),
+            durationFormatted: this.formatDuration(Math.round((item.trackTimeMillis || 0) / 1000)),
+            coverUrl: (item.artworkUrl100 || '').replace('100x100bb', '600x600bb'),
+            previewUrl: item.previewUrl || '',
+            externalUrl: item.trackViewUrl || '',
+            source: 'itunes',
+          };
+        }
+      }
+    } catch (err) {
+      console.warn(`iTunes lookup for ID "${trackId}" failed:`, err);
+    }
+
+    return null;
+  }
+
+  /**
    * Decrypt JioSaavn DES-ECB encrypted media URL.
    */
   public decryptSaavnUrl(encryptedUrl: string): string {

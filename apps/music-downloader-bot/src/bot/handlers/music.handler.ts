@@ -43,6 +43,55 @@ export function registerMusicHandlers(
       }
     }
 
+    // Deep-link from inline query card: /start dl_<trackId>
+    if (match.startsWith('dl_')) {
+      const trackId = match.replace('dl_', '').trim();
+      if (trackId) {
+        if (userService) {
+          await userService.ensureUser(userId, ctx.from?.username, ctx.from?.first_name);
+        }
+
+        const waitMsg = await ctx.reply('🔎 *Memuat informasi lagu...*', { parse_mode: 'Markdown' });
+        try {
+          const track = await musicService.getTrackById(trackId);
+          if (track) {
+            const songQuery = `${track.title} ${track.artist}`.trim();
+            const caption = formatTrackCaption(track, 0, 1);
+            const keyboard = buildPlayerKeyboard(track, songQuery, 0, 1);
+
+            if (track.coverUrl) {
+              await ctx.replyWithPhoto(track.coverUrl, {
+                caption,
+                parse_mode: 'Markdown',
+                reply_markup: keyboard,
+              });
+            } else {
+              await ctx.reply(caption, {
+                parse_mode: 'Markdown',
+                reply_markup: keyboard,
+              });
+            }
+
+            try {
+              await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
+            } catch (_) {}
+            return;
+          }
+        } catch (err) {
+          console.error('Error handling dl_ deep-link:', err);
+        }
+
+        try {
+          await ctx.api.editMessageText(
+            ctx.chat!.id,
+            waitMsg.message_id,
+            '⚠️ Data lagu tidak ditemukan atau telah kedaluwarsa. Silakan cari lagu kembali via /song atau inline query.'
+          );
+        } catch (_) {}
+        return;
+      }
+    }
+
     if (userService) {
       await userService.ensureUser(userId, ctx.from?.username, ctx.from?.first_name);
     }

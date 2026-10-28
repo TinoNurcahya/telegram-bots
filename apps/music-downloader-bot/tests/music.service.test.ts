@@ -71,4 +71,23 @@ describe('MusicService Unit Tests', () => {
     const resolved = await serviceWithoutResolver.resolveViaExternalResolver('Test Song', 'Test Artist');
     expect(resolved).toBeNull();
   });
+
+  it('should fetch track by Deezer ID correctly', async () => {
+    // Deezer track ID 3135556 = "Harder, Better, Faster, Stronger" by Daft Punk
+    const track = await musicService.getTrackById(3135556);
+    expect(track).toBeDefined();
+    if (track) {
+      expect(track.id).toBe(3135556);
+      expect(track.title).toContain('Harder, Better, Faster, Stronger');
+      expect(track.artist.toLowerCase()).toContain('daft punk');
+      expect(track.duration).toBeGreaterThan(0);
+      expect(track.durationFormatted).toBeTruthy();
+    }
+  });
+
+  it('should return null for non-existent track ID', async () => {
+    const track = await musicService.getTrackById('non_existent_random_id_999999999');
+    expect(track).toBeNull();
+  });
 });
+
