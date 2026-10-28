@@ -1,5 +1,12 @@
 # 🎵 Telegram Music Discovery & Audio Downloader Bot
 
+[![Telegram Bot](https://img.shields.io/badge/Telegram_Bot-@Musicdownloader2001__bot-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/Musicdownloader2001_bot)
+[![Vercel Deployment](https://img.shields.io/badge/Vercel_Serverless-Live-black?style=for-the-badge&logo=vercel)](https://music-downloader-bot.tinonurcahya.dev/api/index)
+[![Tests Passing](https://img.shields.io/badge/Tests-45%2F45_Passing-brightgreen?style=for-the-badge)](tests/)
+
+> 🤖 **Coba Langsung di Telegram:** [@Musicdownloader2001_bot](https://t.me/Musicdownloader2001_bot)  
+> 🌐 **Live Webhook Endpoint:** [music-downloader-bot.tinonurcahya.dev](https://music-downloader-bot.tinonurcahya.dev/api/index)
+
 A high-performance, asynchronous Telegram Music Companion and Audio Downloader Bot built with **TypeScript (Node.js 22)**, **grammY**, **Deezer Public API**, **Apple iTunes Search API**, **LRCLIB Lyrics API**, and deployed seamlessly on **Vercel Serverless**.
 
 ---
@@ -16,7 +23,7 @@ A high-performance, asynchronous Telegram Music Companion and Audio Downloader B
 - **👥 Sistem Referral Viral (`/invite`)**: Dapatkan +3 kuota unduhan lagu tambahan untuk pengundang dan teman baru yang bergabung.
 - **🎧 Pratinjau Resmi 30 Detik (Audio Preview)**: Tombol pemutar audio cuplikan resmi 30 detik untuk mendengarkan lagu secara kilat.
 - **📜 Lirik Lagu Lengkap & Karaoke Timestamps (`/lyrics`)**: Integrasi langsung dengan open API **LRCLIB** untuk menampilkan lirik teks bersih dan lirik tersinkronisasi.
-- **🔎 Fitur Telegram Inline Mode (`@NamaBot <judul>`)**: Ketik username bot langsung di chat pribadi, grup, atau channel mana saja untuk mencari dan membagikan lagu seketika ke teman.
+- **🔎 Fitur Telegram Inline Mode (`@Musicdownloader2001_bot <judul>`)**: Ketik username bot `@Musicdownloader2001_bot` langsung di chat pribadi, grup, atau channel mana saja untuk mencari dan membagikan lagu seketika ke teman.
 - **⚡ Arsitektur Serverless Vercel**: Sub-100ms response time, zero maintenance server, dan bebas biaya hosting selamanya.
 
 ---
@@ -90,6 +97,13 @@ npm run build
 ---
 
 ## 🌐 Panduan Deployment Vercel Serverless
+
+Production instance bot ini beroperasi 24/7 di infrastruktur cloud serverless tanpa biaya hosting:
+- 🌐 **Primary Production Domain**: [https://music-downloader-bot.tinonurcahya.dev](https://music-downloader-bot.tinonurcahya.dev)
+- 🛡️ **Fallback Production Domain**: [https://music-downloader-bot.vercel.app](https://music-downloader-bot.vercel.app)
+- 🤖 **Live Bot**: [@Musicdownloader2001_bot](https://t.me/Musicdownloader2001_bot)
+
+### Langkah Setup Vercel Serverless:
 
 1. Hubungkan repository GitHub Anda ke [Vercel](https://vercel.com).
 2. Tambahkan **Environment Variables** di dashboard Vercel:
