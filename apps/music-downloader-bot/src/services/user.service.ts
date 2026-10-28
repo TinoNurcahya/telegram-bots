@@ -256,6 +256,10 @@ export class UserService {
     return this.repo.getGlobalStats();
   }
 
+  public async getUsers(limit: number = 10, offset: number = 0) {
+    return this.repo.getUsers(limit, offset);
+  }
+
   public async getAudioCache(
     trackId: string | number,
     quality: string,

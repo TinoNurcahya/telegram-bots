@@ -36,6 +36,7 @@ export interface IUserRepository {
   claimTrial(telegramId: number, days: number): Promise<boolean>;
   addReferral(inviterId: number, inviteeId: number): Promise<boolean>;
   getGlobalStats(): Promise<GlobalStats>;
+  getUsers(limit?: number, offset?: number): Promise<{ users: UserRecord[]; total: number }>;
   getAudioCache(trackId: string | number, quality: string, title?: string, artist?: string): Promise<string | null>;
   saveAudioCache(trackId: string | number, quality: string, fileId: string, title?: string, artist?: string): Promise<void>;
   recordPayment(chargeId: string, telegramId: number, payload: string, amount: number): Promise<boolean>;
@@ -179,6 +180,14 @@ export class MemoryUserRepository implements IUserRepository {
       totalDownloads,
       premiumUsers,
       totalReferrals: this.referrals.size,
+    };
+  }
+
+  public async getUsers(limit: number = 10, offset: number = 0): Promise<{ users: UserRecord[]; total: number }> {
+    const all = Array.from(this.users.values()).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    return {
+      users: all.slice(offset, offset + limit),
+      total: all.length,
     };
   }
 
@@ -490,6 +499,44 @@ export class PostgresUserRepository implements IUserRepository {
         premiumUsers: 0,
         totalReferrals: 0,
       };
+    }
+  }
+
+  public async getUsers(limit: number = 10, offset: number = 0): Promise<{ users: UserRecord[]; total: number }> {
+    await this.ensureSchema();
+    try {
+      const countRows = (await this.sql`SELECT COUNT(*)::int as count FROM music_users;`) as any[];
+      const total = Number(countRows?.[0]?.count || 0);
+
+      const rows = (await this.sql`
+        SELECT * FROM music_users
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset};
+      `) as any[];
+
+      const users: UserRecord[] = rows.map((r) => ({
+        telegramId: Number(r.telegram_id),
+        username: r.username,
+        firstName: r.first_name,
+        totalDownloads: Number(r.total_downloads || 0),
+        dailyDownloadCount: Number(r.daily_download_count || 0),
+        dailyDownloadDate: r.daily_download_date || '',
+        monthlyDownloadCount: Number(r.monthly_download_count || 0),
+        monthlyDownloadDate: r.monthly_download_date || '',
+        bonusQuota: Number(r.bonus_quota || 0),
+        isPremium: Boolean(r.is_premium),
+        premiumTier: r.premium_tier,
+        premiumUntil: r.premium_until,
+        hasUsedTrial: Boolean(r.has_used_trial),
+        invitedBy: Number(r.invited_by || 0),
+        createdAt: r.created_at || '',
+        lastActive: r.last_active || '',
+      }));
+
+      return { users, total };
+    } catch (err) {
+      console.warn('getUsers error:', err);
+      return { users: [], total: 0 };
     }
   }
 

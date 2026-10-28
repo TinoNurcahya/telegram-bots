@@ -145,4 +145,42 @@ describe('Admin Handler & Audio Cache Unit Tests', () => {
     expect(grantedUser.isPremium).toBe(true);
     expect(grantedUser.daysLeft).toBe(30);
   });
+
+  it('should list registered users via /users command for admin', async () => {
+    const repo = new MemoryUserRepository();
+    const service = new UserService(repo);
+    const adminId = 999999;
+
+    await service.ensureUser(111, 'alice', 'Alice');
+    await service.ensureUser(222, 'bob', 'Bob');
+
+    const mockBot: any = {
+      commands: new Map<string, Function>(),
+      command(names: string | string[], fn: Function) {
+        const list = Array.isArray(names) ? names : [names];
+        list.forEach((n) => this.commands.set(n, fn));
+      },
+      callbackQuery() {},
+    };
+
+    registerAdminHandlers(mockBot, service, adminId);
+    const usersHandler = mockBot.commands.get('users');
+    expect(usersHandler).toBeDefined();
+
+    let replyText = '';
+    const ctx: any = {
+      from: { id: adminId },
+      message: { text: '/users' },
+      reply: (msg: string) => {
+        replyText = msg;
+      },
+    };
+
+    await usersHandler(ctx);
+    expect(replyText).toContain('DAFTAR PENGGUNA TERDAFTAR');
+    expect(replyText).toContain('Alice');
+    expect(replyText).toContain('Bob');
+    expect(replyText).toContain('111');
+    expect(replyText).toContain('222');
+  });
 });

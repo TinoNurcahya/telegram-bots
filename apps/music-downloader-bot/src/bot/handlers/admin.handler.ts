@@ -1,5 +1,6 @@
 import { Context } from 'grammy';
 import { UserService } from '../../services/user.service.js';
+import { escapeMarkdown } from '../../utils/markdown.js';
 
 export function registerAdminHandlers(bot: any, userService: UserService, adminId: number = 0): void {
   bot.command(['stats', 'admin'], async (ctx: Context) => {
@@ -46,7 +47,7 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
   bot.command(['grant', 'grantme'], async (ctx: Context) => {
     const senderId = ctx.from?.id || 0;
     if (adminId > 0 && senderId !== adminId) {
-      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin bot.');
+      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
       return;
     }
 
@@ -77,4 +78,95 @@ export function registerAdminHandlers(bot: any, userService: UserService, adminI
       parse_mode: 'Markdown',
     });
   });
+
+  // Admin User List Command: /users or /userlist [page]
+  bot.command(['users', 'userlist'], async (ctx: Context) => {
+    const senderId = ctx.from?.id || 0;
+    if (adminId > 0 && senderId !== adminId) {
+      await ctx.reply('⛔ Akses ditolak. Perintah ini hanya dapat diakses oleh Admin.');
+      return;
+    }
+
+    const text = ctx.message?.text?.trim() || '';
+    const pageArg = text.split(/\s+/)[1];
+    let page = parseInt(pageArg || '1', 10);
+    if (isNaN(page) || page < 1) page = 1;
+
+    await sendUsersListPage(ctx, userService, page, false);
+  });
+
+  // Pagination callback query for /users
+  if (typeof bot.callbackQuery === 'function') {
+    bot.callbackQuery(/^users_page_(\d+)$/, async (ctx: Context) => {
+      const senderId = ctx.from?.id || 0;
+      if (adminId > 0 && senderId !== adminId) {
+        await ctx.answerCallbackQuery({ text: '⛔ Akses ditolak.', show_alert: true });
+        return;
+      }
+      await ctx.answerCallbackQuery();
+      const page = parseInt(ctx.match?.[1] || '1', 10);
+      await sendUsersListPage(ctx, userService, page, true);
+    });
+  }
 }
+
+/**
+ * Render and send paginated user list card.
+ */
+async function sendUsersListPage(
+  ctx: Context,
+  userService: UserService,
+  page: number,
+  isEdit: boolean
+): Promise<void> {
+  const limit = 8;
+  const offset = (page - 1) * limit;
+  const { users, total } = await userService.getUsers(limit, offset);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  if (users.length === 0) {
+    const emptyMsg = `👥 *DAFTAR PENGGUNA TERDAFTAR*\n\nBelum ada pengguna yang terdaftar di database.`;
+    if (isEdit) {
+      await ctx.editMessageText(emptyMsg, { parse_mode: 'Markdown' });
+    } else {
+      await ctx.reply(emptyMsg, { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
+  let text = `👥 *DAFTAR PENGGUNA TERDAFTAR*\n(Halaman ${page}/${totalPages} • Total: ${total} user)\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  users.forEach((u, i) => {
+    const num = offset + i + 1;
+    const name = escapeMarkdown(u.firstName || 'User');
+    const uname = u.username ? `@${escapeMarkdown(u.username)}` : '_tanpa username_';
+    const tier = u.isPremium ? `👑 *VIP* (${escapeMarkdown(u.premiumTier || 'active')})` : '🆓 *Free*';
+    const date = u.createdAt ? u.createdAt.split('T')[0] : '-';
+
+    text += `${num}. *${name}* (${uname})\n`;
+    text += `   🆔 \`${u.telegramId}\` • Status: ${tier}\n`;
+    text += `   📥 Unduhan: *${u.totalDownloads}* lagu • Gabung: \`${date}\`\n\n`;
+  });
+
+  const buttons: any[] = [];
+  if (page > 1) {
+    buttons.push({ text: '⬅️ Sebelumnya', callback_data: `users_page_${page - 1}` });
+  }
+  if (page < totalPages) {
+    buttons.push({ text: 'Selanjutnya ➡️', callback_data: `users_page_${page + 1}` });
+  }
+
+  const keyboard = buttons.length > 0 ? { inline_keyboard: [buttons] } : undefined;
+
+  if (isEdit) {
+    try {
+      await ctx.editMessageText(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    } catch (_) {
+      await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+    }
+  } else {
+    await ctx.reply(text, { parse_mode: 'Markdown', reply_markup: keyboard });
+  }
+}
+
