@@ -1,9 +1,10 @@
 import os
 import io
+import random
 import urllib.parse
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Set, Any
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont
 
@@ -22,36 +23,41 @@ class ImageService:
         keywords: List[str],
         output_dir: Path,
         width: int = 720,
-        height: int = 1280
+        height: int = 1280,
+        used_media_ids: Optional[Set[Any]] = None
     ) -> Path:
         """
-        Fetches high-res vertical imagery with a 4-tier resilience pipeline:
-        Tier 1: Pollinations.ai (AI Generation)
-        Tier 2: Wikimedia Commons (Topic-relevant real HD photo)
-        Tier 3: Pexels API (if key is set)
-        Tier 4: Picsum Photos (Guaranteed real HD photography)
+        Fetches high-res vertical imagery with a 4-tier resilience & anti-duplication pipeline:
+        Tier 1: Pollinations.ai (AI Generation with unique random seed)
+        Tier 2: Pexels API (Random multi-page candidate selection + ID deduplication)
+        Tier 3: Wikimedia Commons (Random selection from matching real photos)
+        Tier 4: Offline Anime Aesthetic Canvas Fallback
         """
         output_dir.mkdir(parents=True, exist_ok=True)
         target_path = output_dir / f"scene_{scene_number}.jpg"
 
-        # 1. Tier 1: Pollinations.ai AI Anime Generation (Studio Ghibli aesthetic)
+        # 1. Tier 1: Pollinations.ai AI Anime Generation (Unique Seed)
         success = await self._fetch_from_pollinations(prompt, keywords, target_path, width, height)
         if success and target_path.exists() and target_path.stat().st_size > 15000:
             logger.info(f"Successfully generated Studio Ghibli AI visual for scene {scene_number}")
             return target_path
 
-        # 2. Tier 2: Pexels API with anime illustration keywords fallback
+        # 2. Tier 2: Pexels API with clean keywords, random choice, and deduplication
         if self.pexels_api_key and keywords:
-            anime_keywords = [f"{kw} anime illustration" for kw in keywords] + ["anime scenery artwork"]
-            success = await self._fetch_from_pexels(anime_keywords, target_path, width, height)
+            clean_keywords = [
+                k.replace("anime", "").replace("illustration", "").replace("artwork", "").strip()
+                for k in keywords if len(k.strip()) > 2
+            ]
+            clean_keywords = [k for k in clean_keywords if k] or keywords
+            success = await self._fetch_from_pexels(clean_keywords, target_path, width, height, used_media_ids=used_media_ids)
             if success and target_path.exists() and target_path.stat().st_size > 15000:
-                logger.info(f"Successfully fetched anime illustration from Pexels for scene {scene_number}")
+                logger.info(f"Successfully fetched unique HD photo from Pexels for scene {scene_number}")
                 return target_path
 
-        # 3. Tier 3: Wikimedia Commons with anime keywords
+        # 3. Tier 3: Wikimedia Commons with randomized selection
         if keywords:
-            anime_wiki = [f"{kw} anime illustration" for kw in keywords]
-            success = await self._fetch_from_wikimedia(anime_wiki, target_path, width, height)
+            clean_wiki = [k.replace("anime", "").strip() for k in keywords if len(k.strip()) > 2]
+            success = await self._fetch_from_wikimedia(clean_wiki or keywords, target_path, width, height)
             if success and target_path.exists() and target_path.stat().st_size > 15000:
                 return target_path
 
@@ -98,11 +104,12 @@ class ImageService:
             else:
                 full_prompt = f"Enchanting anime landscape, {ghibli_tag}"
 
+            seed = random.randint(1000, 99999999)
             encoded_prompt = urllib.parse.quote(full_prompt[:260])
-            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true"
+            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
 
             headers = {"User-Agent": "Mozilla/5.0"}
-            timeout = aiohttp.ClientTimeout(total=25)
+            timeout = aiohttp.ClientTimeout(total=20)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
@@ -116,13 +123,13 @@ class ImageService:
     async def _fetch_from_wikimedia(
         self, keywords: List[str], target_path: Path, width: int, height: int
     ) -> bool:
-        """Fetches a real HD photo from Wikimedia Commons matching scene keywords."""
+        """Fetches a real HD photo from Wikimedia Commons matching scene keywords with random selection."""
         try:
             query = " ".join(keywords[:2])
             encoded_query = urllib.parse.quote(query)
             api_url = (
                 f"https://commons.wikimedia.org/w/api.php?action=query&generator=search"
-                f"&gsrsearch={encoded_query}&gsrnamespace=6&prop=imageinfo&iiprop=url&format=json&gsrlimit=3"
+                f"&gsrsearch={encoded_query}&gsrnamespace=6&prop=imageinfo&iiprop=url&format=json&gsrlimit=6"
             )
 
             headers = {"User-Agent": "AIVideoStudioBot/1.0 (portfolio@example.com)"}
@@ -131,18 +138,20 @@ class ImageService:
                 async with session.get(api_url, headers=headers) as response:
                     if response.status == 200:
                         data = await response.json()
-                        pages = data.get("query", {}).get("pages", {})
-                        for page in pages.values():
-                            info = page.get("imageinfo", [])
-                            if info and "url" in info[0]:
-                                img_url = info[0]["url"]
-                                if img_url.lower().endswith((".jpg", ".jpeg", ".png")):
-                                    async with session.get(img_url, headers=headers) as img_resp:
-                                        if img_resp.status == 200:
-                                            content = await img_resp.read()
-                                            if len(content) > 20000:
-                                                logger.info(f"Successfully fetched Wikimedia photo: {page.get('title')}")
-                                                return self._smart_crop_and_save(content, target_path, width, height)
+                        pages = list(data.get("query", {}).get("pages", {}).values())
+                        if pages:
+                            random.shuffle(pages)
+                            for page in pages:
+                                info = page.get("imageinfo", [])
+                                if info and "url" in info[0]:
+                                    img_url = info[0]["url"]
+                                    if img_url.lower().endswith((".jpg", ".jpeg", ".png")):
+                                        async with session.get(img_url, headers=headers) as img_resp:
+                                            if img_resp.status == 200:
+                                                content = await img_resp.read()
+                                                if len(content) > 20000:
+                                                    logger.info(f"Successfully fetched Wikimedia photo: {page.get('title')}")
+                                                    return self._smart_crop_and_save(content, target_path, width, height)
             return False
         except Exception as e:
             logger.warning(f"Wikimedia fetch failed: {e}")
@@ -151,9 +160,10 @@ class ImageService:
     async def _fetch_from_picsum(
         self, scene_number: int, target_path: Path, width: int, height: int
     ) -> bool:
-        """Fetches a guaranteed high-res real photograph from Picsum."""
+        """Fetches a guaranteed high-res real photograph from Picsum with unique seed."""
         try:
-            url = f"https://picsum.photos/{width}/{height}?random={scene_number + 10}"
+            random_seed = random.randint(1000, 999999)
+            url = f"https://picsum.photos/seed/{random_seed}/{width}/{height}"
             headers = {"User-Agent": "Mozilla/5.0"}
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -170,13 +180,22 @@ class ImageService:
             return False
 
     async def _fetch_from_pexels(
-        self, keywords: List[str], target_path: Path, width: int, height: int
+        self,
+        keywords: List[str],
+        target_path: Path,
+        width: int,
+        height: int,
+        used_media_ids: Optional[Set[Any]] = None
     ) -> bool:
-        """Fetches vertical HD photo from Pexels API."""
+        """Fetches vertical HD photo from Pexels API with random selection and deduplication."""
         try:
-            query = " ".join(keywords[:2])
-            url = f"https://api.pexels.com/v1/search?query={urllib.parse.quote(query)}&orientation=portrait&per_page=1"
-            headers = {"Authorization": self.pexels_api_key}
+            query = " ".join(keywords[:2]) if keywords else "mysterious landscape"
+            page = random.randint(1, 3)
+            url = f"https://api.pexels.com/v1/search?query={urllib.parse.quote(query)}&orientation=portrait&per_page=15&page={page}"
+            headers = {
+                "Authorization": self.pexels_api_key,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            }
 
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -185,7 +204,15 @@ class ImageService:
                         data = await response.json()
                         photos = data.get("photos", [])
                         if photos:
-                            img_url = photos[0].get("src", {}).get("large2x") or photos[0].get("src", {}).get("original")
+                            # Filter out already used photo IDs in this video
+                            candidates = [p for p in photos if not used_media_ids or p.get("id") not in used_media_ids]
+                            if not candidates:
+                                candidates = photos
+                            chosen = random.choice(candidates)
+                            if used_media_ids is not None and chosen.get("id"):
+                                used_media_ids.add(chosen.get("id"))
+                            
+                            img_url = chosen.get("src", {}).get("large2x") or chosen.get("src", {}).get("original")
                             if img_url:
                                 async with session.get(img_url) as img_resp:
                                     if img_resp.status == 200:

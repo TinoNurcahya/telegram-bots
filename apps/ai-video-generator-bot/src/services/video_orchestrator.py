@@ -100,20 +100,22 @@ class VideoOrchestrator:
             # 3. Process scenes: Visuals matched with Google AI Studio audio slices
             scene_inputs: List[VideoSceneInput] = []
             total_duration = 0.0
+            used_media_ids = set()
 
             for scene in script.scenes:
                 audio_res = audio_map.get(scene.scene_number)
                 if not audio_res:
                     raise RuntimeError(f"Missing Google AI Studio voiceover audio for scene {scene.scene_number}")
 
-                # Visual Image
+                # Visual Image with deduplication
                 img_path = await self.image_service.fetch_scene_visual(
                     scene_number=scene.scene_number,
                     prompt=scene.visual_prompt,
                     keywords=scene.keywords,
                     output_dir=job_temp_dir,
                     width=settings.VIDEO_WIDTH,
-                    height=settings.VIDEO_HEIGHT
+                    height=settings.VIDEO_HEIGHT,
+                    used_media_ids=used_media_ids
                 )
 
                 scene_inputs.append(
