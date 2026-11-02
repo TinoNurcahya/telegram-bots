@@ -55,7 +55,8 @@ async def run_pipeline(
         logger.info(f"▶️ YouTube Shorts URL: https://youtube.com/shorts/{result.youtube_id}")
 
     # 4. Broadcast to Telegram if configured
-    if send_telegram and settings.BOT_TOKEN and settings.TARGET_CHAT_ID:
+    clean_bot_token = (settings.BOT_TOKEN or "").strip().strip("'\"").replace(" ", "").replace("\r", "").replace("\n", "")
+    if send_telegram and clean_bot_token and settings.TARGET_CHAT_ID:
         from aiogram import Bot
         from aiogram.client.session.aiohttp import AiohttpSession
         from aiogram.client.default import DefaultBotProperties
@@ -64,7 +65,7 @@ async def run_pipeline(
 
         session = AiohttpSession(timeout=300.0)
         bot = Bot(
-            token=settings.BOT_TOKEN,
+            token=clean_bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN),
             session=session
         )

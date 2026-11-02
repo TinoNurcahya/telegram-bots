@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AliasChoices
+from pydantic import Field, AliasChoices, field_validator
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,6 +23,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("TARGET_CHAT_ID", "VIDEO_GEN_TARGET_CHAT_ID", "AI_SHORTS_TARGET_CHAT_ID"),
         description="Telegram User or Channel ID for daily automated drops"
     )
+
+    @field_validator("BOT_TOKEN", mode="before")
+    @classmethod
+    def sanitize_token(cls, v):
+        if isinstance(v, str):
+            return v.strip().strip("'\"").replace(" ", "").replace("\r", "").replace("\n", "")
+        return v
+
+    @field_validator("GEMINI_API_KEY", mode="before")
+    @classmethod
+    def sanitize_gemini_key(cls, v):
+        if isinstance(v, str):
+            return v.strip().strip("'\"").replace(" ", "").replace("\r", "").replace("\n", "")
+        return v
 
     # AI & Scripting (Gemini)
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key")
