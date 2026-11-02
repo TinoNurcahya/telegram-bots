@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
+from pydantic import Field, AliasChoices
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -13,8 +13,16 @@ class Settings(BaseSettings):
     )
 
     # Telegram Credentials
-    BOT_TOKEN: str = Field(default="", description="Telegram Bot Token from @BotFather")
-    TARGET_CHAT_ID: int = Field(default=0, description="Telegram User or Channel ID for daily automated drops")
+    BOT_TOKEN: str = Field(
+        default="",
+        validation_alias=AliasChoices("BOT_TOKEN", "VIDEO_GEN_BOT_TOKEN", "AI_SHORTS_BOT_TOKEN"),
+        description="Telegram Bot Token from @BotFather"
+    )
+    TARGET_CHAT_ID: int = Field(
+        default=0,
+        validation_alias=AliasChoices("TARGET_CHAT_ID", "VIDEO_GEN_TARGET_CHAT_ID", "AI_SHORTS_TARGET_CHAT_ID"),
+        description="Telegram User or Channel ID for daily automated drops"
+    )
 
     # AI & Scripting (Gemini)
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key")
