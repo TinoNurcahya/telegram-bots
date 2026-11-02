@@ -29,17 +29,10 @@ class YouTubeService:
         base = Path(__file__).resolve().parent.parent.parent
         self.client_secrets_file = base / (client_secrets_file or settings.YOUTUBE_CLIENT_SECRETS_FILE)
         self.credentials_storage = base / (credentials_storage or settings.YOUTUBE_CREDENTIALS_STORAGE)
+        self._ensure_token_restored()
 
-    def is_configured(self) -> bool:
-        """Checks if YouTube OAuth credentials file exists."""
-        return self.credentials_storage.exists() or self.client_secrets_file.exists()
-
-    def get_authenticated_service(self):
-        """Builds YouTube Data API client from stored credentials."""
-        if not Credentials:
-            raise RuntimeError("Google API Client libraries are not installed.")
-
-        # Check if token JSON is provided directly via environment variable
+    def _ensure_token_restored(self):
+        """Restores youtube_token.json from YOUTUBE_TOKEN_JSON environment variable if available."""
         env_token = os.environ.get("YOUTUBE_TOKEN_JSON")
         if env_token and not self.credentials_storage.exists():
             try:
@@ -49,6 +42,22 @@ class YouTubeService:
                 logger.info("Restored YouTube token from YOUTUBE_TOKEN_JSON environment variable.")
             except Exception as e:
                 logger.warning(f"Failed to write YOUTUBE_TOKEN_JSON to file: {e}")
+
+    def is_configured(self) -> bool:
+        """Checks if YouTube OAuth credentials exist (file or environment variable)."""
+        self._ensure_token_restored()
+        return (
+            bool(os.environ.get("YOUTUBE_TOKEN_JSON"))
+            or self.credentials_storage.exists()
+            or self.client_secrets_file.exists()
+        )
+
+    def get_authenticated_service(self):
+        """Builds YouTube Data API client from stored credentials."""
+        if not Credentials:
+            raise RuntimeError("Google API Client libraries are not installed.")
+
+        self._ensure_token_restored()
 
         creds = None
         if self.credentials_storage.exists():
