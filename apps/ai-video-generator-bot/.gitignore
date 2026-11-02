@@ -19,5 +19,6 @@ youtube_token.json
 storage/temp/*
 storage/output/*
 *.db
+*TEMP_MPY*
 !storage/temp/.gitkeep
 !storage/output/.gitkeep

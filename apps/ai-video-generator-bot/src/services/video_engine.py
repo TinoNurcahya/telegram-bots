@@ -177,9 +177,16 @@ class VideoEngine:
             chunks.append(words[i:i + chunk_size])
         return chunks
 
-    def create_scene_clip(self, scene: VideoSceneInput) -> CompositeVideoClip:
+    def create_scene_clip(
+        self,
+        scene: VideoSceneInput,
+        intro_thumbnail_path: Optional[Path] = None,
+        intro_duration: float = 0.85
+    ) -> CompositeVideoClip:
         """
         Creates a single composite scene with Ken Burns pan/zoom and kinetic captions.
+        If intro_thumbnail_path is provided on Scene 1, bakes the thumbnail image
+        into the opening 0.85s as a high-CTR hook and YouTube Shorts thumbnail.
         """
         if not ImageClip:
             raise RuntimeError("MoviePy is not installed.")
@@ -286,7 +293,21 @@ class VideoEngine:
                 )
                 layers.append(cap_clip)
 
-        # 5. Composite layers and attach audio
+        # 5. High-CTR Thumbnail Hook (Bakes thumbnail into Frame 0 for YouTube Shorts)
+        if intro_thumbnail_path and os.path.exists(intro_thumbnail_path) and scene.scene_number == 1:
+            try:
+                actual_intro_dur = min(intro_duration, scene_duration * 0.35)
+                intro_clip = (
+                    ImageClip(str(intro_thumbnail_path))
+                    .with_start(0.0)
+                    .with_duration(actual_intro_dur)
+                )
+                layers.append(intro_clip)
+                logger.info(f"Attached opening thumbnail hook to Scene 1 (duration={actual_intro_dur:.2f}s)")
+            except Exception as ie:
+                logger.warning(f"Could not attach opening thumbnail hook: {ie}")
+
+        # 6. Composite layers and attach audio
         scene_clip = CompositeVideoClip(layers, size=(self.width, self.height)).with_duration(scene_duration)
         if audio_clip:
             scene_clip = scene_clip.with_audio(audio_clip)
@@ -297,11 +318,12 @@ class VideoEngine:
         self,
         scenes: List[VideoSceneInput],
         output_path: Path,
-        bgm_path: Optional[Path] = None
+        bgm_path: Optional[Path] = None,
+        intro_thumbnail_path: Optional[Path] = None
     ) -> Path:
         """
-        Assembles all scenes sequentially, adds BGM with ducking, and exports final .mp4
-        in a non-blocking background thread.
+        Assembles all scenes sequentially, bakes opening thumbnail into Frame 0,
+        adds BGM with ducking, and exports final .mp4 in a non-blocking background thread.
         """
         import asyncio
         if not concatenate_videoclips:
@@ -316,7 +338,9 @@ class VideoEngine:
 
         try:
             for s in scenes:
-                scene_clip = self.create_scene_clip(s)
+                is_first = (s == scenes[0]) or (getattr(s, "scene_number", 1) == 1)
+                thumb_to_pass = intro_thumbnail_path if is_first else None
+                scene_clip = self.create_scene_clip(s, intro_thumbnail_path=thumb_to_pass)
                 clips.append(scene_clip)
 
             final_clip = concatenate_videoclips(clips, method="compose")
@@ -340,6 +364,14 @@ class VideoEngine:
                         final_clip = final_clip.with_audio(bgm_clip)
                 except Exception as e:
                     logger.warning(f"Failed to mix BGM, proceeding with voiceover only: {e}")
+
+            # Apply smooth audio fadeout to prevent any sudden pops at the end of the video
+            if final_clip.audio:
+                try:
+                    from moviepy.audio.fx import AudioFadeOut
+                    final_clip = final_clip.with_audio(final_clip.audio.with_effects([AudioFadeOut(0.3)]))
+                except Exception as e:
+                    logger.warning(f"Failed to apply AudioFadeOut: {e}")
 
             logger.info(f"Writing video file to {output_path} (fps={self.fps}, duration={total_duration:.1f}s)...")
 

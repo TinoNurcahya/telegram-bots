@@ -10,6 +10,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 from src.config import settings
 from src.repositories.database import init_db
 from src.services.video_orchestrator import VideoOrchestrator, FullVideoResult
@@ -73,12 +82,16 @@ async def run_pipeline(
             logger.info(f"📡 Delivering video to Telegram Chat ID: {settings.TARGET_CHAT_ID}...")
             clean_yt_id = result.youtube_id.replace("_", "\\_") if result.youtube_id else None
             yt_line = f"\n\n▶️ **YouTube Shorts**: https://youtube.com/shorts/{clean_yt_id}" if clean_yt_id else ""
+            voice_line = ""
+            if getattr(result, "voice_persona", None) and getattr(result, "voice_name", None):
+                voice_line = f"\n🎙️ **Persona**: `{result.voice_persona}` | **Voice**: `{result.voice_name}`"
             caption = (
                 f"🎬 **AI Shorts Studio — Production Release**\n\n"
                 f"📌 **{result.title}**\n\n"
                 f"📝 {result.description}\n\n"
                 f"🏷️ {' '.join(result.tags)}\n\n"
                 f"⏱️ Durasi: `{result.duration:.1f} detik` | 📐 Format: `{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT}`"
+                f"{voice_line}"
                 f"{yt_line}"
             )
 

@@ -3,7 +3,7 @@
 > 🤖 **Telegram Bot**: [@aivideogenerator2004_bot](https://t.me/aivideogenerator2004_bot)  
 > 🟢 **Status**: Built & Ready (Long Polling & Daily Automation Scheduler)
 
-An automated, end-to-end **AI YouTube Shorts / Faceless Video Creator Bot** built with **Python 3.13**, **`aiogram v3`**, **Google Gemini**, **Edge-TTS**, **Pollinations FLUX**, and **MoviePy / FFmpeg**.
+An automated, end-to-end **AI YouTube Shorts / Faceless Video Creator Bot** built with **Python 3.13**, **`aiogram v3`**, **Google Gemini**, **Google AI Studio TTS**, **Pollinations FLUX**, and **MoviePy / FFmpeg**.
 
 Produces high-retention, vertical **9:16 (1080x1920)** videos complete with cinematic imagery, smooth Ken Burns zoom effects, viral hooks, word-by-word kinetic highlighted subtitles, background music mixing, and optional YouTube Data API v3 upload.
 
@@ -12,7 +12,7 @@ Produces high-retention, vertical **9:16 (1080x1920)** videos complete with cine
 ## ⚡ Key Highlights & Features
 
 - **🧠 Viral Scripting Engine (Google Gemini)**: Generates high-CTR titles, 3-second psychological hooks, 5-7 punchy scenes, and SEO tags optimized for Shorts algorithms.
-- **🎙️ Neural Spoken Audio (Edge-TTS)**: Studio-grade global English voiceover (`en-US-ChristopherNeural` / `en-US-JennyNeural`) with exact microsecond word-level boundaries for kinetic subtitle timing.
+- **🎙️ Google AI Studio Neural Audio (75 Diverse Combinations)**: 100% Google AI Studio TTS powered by 15 Personas (*The Master Storyteller, The Ad Voiceover, The Training Guide, The Game Show Host, The Patient Teacher, The Everyday Assistant, The Guarded NPC, The Energetic Co-Host, The Cheeky Sidekick, The Mad Scientist, The Regal Monarch, The Late-Night DJ, The Meditation Guide, The Hype Announcer, The Grizzled Detective*) and 5 Google Prebuilt Voices (*Aoede, Charon, Fenrir, Kore, Puck*).
 - **🎨 AI Visual Pipeline (Pollinations FLUX)**: Fetches photorealistic 8K vertical imagery without requiring paid API keys, with automatic Pexels B-roll and stylized gradient canvas fallback.
 - **🎞️ Compositor & Kinetic Subtitles (MoviePy + FFmpeg + Pillow)**:
   - 1080x1920 @ 30fps vertical composition.
@@ -36,8 +36,8 @@ Produces high-retention, vertical **9:16 (1080x1920)** videos complete with cine
               (Hook, Scenes, & Visual Prompts)
                  /                       \
                 ▼                         ▼
-      [ Edge-TTS Synthesis ]    [ Pollinations.ai (FLUX) ]
-   (Voiceover + Word Timestamps) (1080x1920 Scene Visuals)
+   [ Google AI Studio TTS ]     [ Pollinations.ai (FLUX) ]
+ (40 Personas x Voices WAV)     (1080x1920 Scene Visuals)
                 \                         /
                  ▼                       ▼
             [ MoviePy + FFmpeg Video Compositor ]

@@ -93,6 +93,9 @@ async def main():
 
     try:
         if settings.BOT_TOKEN and settings.BOT_TOKEN != "your_telegram_bot_token_here":
+            # Clear any previously registered webhook so polling can receive updates
+            await bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Cleared previous webhook (drop_pending_updates=True).")
             await dp.start_polling(bot)
         else:
             logger.info("Running in offline demonstration mode. Press Ctrl+C to stop.")

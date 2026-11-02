@@ -48,3 +48,14 @@ def get_video_actions_keyboard(video_id: int, youtube_id: Optional[str] = None, 
         InlineKeyboardButton(text="🏠 Menu Utama", callback_data="btn:main_menu")
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_tts_retry_keyboard() -> InlineKeyboardMarkup:
+    """Keyboard shown when Google AI Studio TTS quota limit is reached."""
+    buttons = [
+        [
+            InlineKeyboardButton(text="🔄 Coba Lagi", callback_data="btn:generate_instant"),
+            InlineKeyboardButton(text="🏠 Menu Utama", callback_data="btn:main_menu")
+        ]
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+

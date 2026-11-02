@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AliasChoices, field_validator
 
@@ -47,8 +48,11 @@ class Settings(BaseSettings):
     DAILY_SCHEDULE_TIME: str = Field(default="08:00", description="HH:MM in 24h format")
     SCHEDULER_TIMEZONE: str = Field(default="Asia/Jakarta", description="Timezone string")
 
-    # Audio & Voiceover (Edge-TTS)
-    VOICE_NAME: str = Field(default="en-US-JennyNeural", description="Voice ID from Edge-TTS")
+    # Audio & Voiceover (Google AI Studio TTS)
+    GEMINI_TTS_MODEL: str = Field(default="gemini-3.8-flash-tts", description="Gemini Flagship TTS Model Identifier")
+    VOICE_PERSONA: Optional[str] = Field(default=None, description="Fixed AI Studio Persona or None for random pool")
+    GOOGLE_VOICE_NAME: Optional[str] = Field(default=None, description="Fixed Google Voice or None for random pool")
+    VOICE_NAME: str = Field(default="Aoede", description="Legacy Voice identifier")
     VOICE_RATE: str = Field(default="+0%", description="Speaking speed rate")
     VOICE_PITCH: str = Field(default="+0Hz", description="Voice pitch tuning")
 
@@ -64,6 +68,7 @@ class Settings(BaseSettings):
 
     # YouTube Data API v3
     AUTO_UPLOAD_YOUTUBE: bool = Field(default=True, description="Automatically upload generated videos to YouTube Shorts")
+    YOUTUBE_PRIVACY_STATUS: str = Field(default="public", description="Default privacy status: public, unlisted, private")
     YOUTUBE_CLIENT_SECRETS_FILE: str = Field(default="client_secrets.json")
     YOUTUBE_CREDENTIALS_STORAGE: str = Field(default="youtube_token.json")
 

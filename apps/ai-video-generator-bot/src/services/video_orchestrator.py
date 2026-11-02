@@ -28,6 +28,8 @@ class FullVideoResult(BaseModel):
     video_path: str
     youtube_id: Optional[str] = None
     thumbnail_path: Optional[str] = None
+    voice_persona: Optional[str] = None
+    voice_name: Optional[str] = None
 
 class VideoOrchestrator:
     def __init__(
@@ -76,24 +78,33 @@ class VideoOrchestrator:
             script: VideoScript = await self.script_service.generate_script(topic)
             logger.info(f"[{job_id}] Script generated: '{script.title}' with {len(script.scenes)} scenes.")
 
+            # Pick persona & voice for varied studio delivery
+            chosen_persona, chosen_voice = self.voice_service.pick_random_persona_and_voice()
+
             if progress_callback:
                 await progress_callback(
-                    f"🎙️ [2/4] Naskah siap: *\"{script.title[:32]}...\"*\n"
-                    f"Sedang merekam suara neural Edge-TTS ({len(script.scenes)} adegan)..."
+                    f"🎙️ [2/4] Naskah siap: *\"{script.title[:30]}...\"*\n"
+                    f"Sedang merekam suara Google AI Studio: *{chosen_persona}* (Suara: *{chosen_voice}*)..."
                 )
 
-            # 2 & 3. Process scenes: Voiceover + Images concurrently or sequentially
+            # 2. Synthesize complete narration with Google AI Studio TTS (1 Request for entire video)
+            voice_result = await self.voice_service.synthesize_full_voiceover(
+                scenes=script.scenes,
+                output_dir=job_temp_dir,
+                persona=chosen_persona,
+                voice=chosen_voice,
+                progress_callback=progress_callback
+            )
+            audio_map = {res.scene_number: res for res in voice_result.scene_results}
+
+            # 3. Process scenes: Visuals matched with Google AI Studio audio slices
             scene_inputs: List[VideoSceneInput] = []
             total_duration = 0.0
 
             for scene in script.scenes:
-                # Audio TTS + Word Timestamps
-                audio_res: AudioSceneResult = await self.voice_service.synthesize_scene(
-                    scene_number=scene.scene_number,
-                    text=scene.voiceover_text,
-                    output_dir=job_temp_dir,
-                    subtitle_text=getattr(scene, "subtitle_text", None)
-                )
+                audio_res = audio_map.get(scene.scene_number)
+                if not audio_res:
+                    raise RuntimeError(f"Missing Google AI Studio voiceover audio for scene {scene.scene_number}")
 
                 # Visual Image
                 img_path = await self.image_service.fetch_scene_visual(
@@ -140,17 +151,7 @@ class VideoOrchestrator:
                     bgm_file = random.choice(candidates) if candidates else random.choice(audio_files)
                     logger.info(f"Selected BGM for job [{job_id}]: {bgm_file.name}")
 
-            # 5. Composite and Render Video with MoviePy
-            output_filename = f"short_{job_id}.mp4"
-            final_output_path = settings.abs_output_dir / output_filename
-
-            await self.video_engine.render_video(
-                scenes=scene_inputs,
-                output_path=final_output_path,
-                bgm_path=bgm_file
-            )
-
-            # 6. Generate High-CTR Siesta Thumbnail
+            # 5. Generate High-CTR Siesta Thumbnail (To be baked into Frame 0 for YouTube Shorts)
             thumbnail_path = settings.abs_output_dir / f"thumb_{job_id}.jpg"
             try:
                 first_bg = scene_inputs[0].image_path if scene_inputs else None
@@ -168,6 +169,17 @@ class VideoOrchestrator:
                 logger.warning(f"[{job_id}] Thumbnail generation failed: {te}")
                 thumbnail_path = None
 
+            # 6. Composite and Render Video with MoviePy (Bakes thumbnail into Frame 0)
+            output_filename = f"short_{job_id}.mp4"
+            final_output_path = settings.abs_output_dir / output_filename
+
+            await self.video_engine.render_video(
+                scenes=scene_inputs,
+                output_path=final_output_path,
+                bgm_path=bgm_file,
+                intro_thumbnail_path=thumbnail_path
+            )
+
             # 7. Optional: Upload to YouTube with custom thumbnail
             youtube_id = None
             if auto_upload_youtube and self.youtube_service.is_configured():
@@ -179,7 +191,8 @@ class VideoOrchestrator:
                         title=script.title,
                         description=script.description,
                         tags=script.tags,
-                        thumbnail_path=thumbnail_path
+                        thumbnail_path=thumbnail_path,
+                        privacy_status=settings.YOUTUBE_PRIVACY_STATUS
                     )
                     if youtube_id:
                         logger.info(f"[{job_id}] Auto-uploaded to YouTube Shorts: id={youtube_id}")
@@ -212,7 +225,9 @@ class VideoOrchestrator:
                 duration=round(total_duration, 2),
                 video_path=str(final_output_path),
                 youtube_id=youtube_id,
-                thumbnail_path=str(thumbnail_path) if thumbnail_path and thumbnail_path.exists() else None
+                thumbnail_path=str(thumbnail_path) if thumbnail_path and thumbnail_path.exists() else None,
+                voice_persona=voice_result.persona_name,
+                voice_name=voice_result.voice_name
             )
 
         except Exception as e:

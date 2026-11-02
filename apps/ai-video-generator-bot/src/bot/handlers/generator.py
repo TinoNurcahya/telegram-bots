@@ -7,13 +7,15 @@ from aiogram.filters import Command
 
 from src.config import settings
 from src.services.video_orchestrator import VideoOrchestrator, FullVideoResult
+from src.services.voice_service import GoogleTTSQuotaExhaustedError
 from src.services.script_gen import SIESTA_CATEGORIES
 from src.services.youtube_service import YouTubeService
 from src.repositories.video_repo import VideoRepository
 from src.bot.keyboards.inline import (
     get_topic_selection_keyboard,
     get_video_actions_keyboard,
-    get_main_menu_keyboard
+    get_main_menu_keyboard,
+    get_tts_retry_keyboard
 )
 
 logger = logging.getLogger(__name__)
@@ -73,11 +75,15 @@ async def process_video_generation(
                 return
 
             format_str = f"{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT} (9:16)"
+            voice_line = ""
+            if getattr(result, "voice_persona", None) and getattr(result, "voice_name", None):
+                voice_line = f"\n🎙️ **Persona**: `{result.voice_persona}` | **Voice**: `{result.voice_name}`"
+
             caption = (
                 f"🎬 **{result.title}**\n\n"
                 f"📝 {result.description}\n\n"
                 f"🏷️ {' '.join(result.tags)}\n\n"
-                f"⏱️ **Durasi**: `{result.duration:.1f} detik` | 📐 **Format**: `{format_str}`"
+                f"⏱️ **Durasi**: `{result.duration:.1f} detik` | 📐 **Format**: `{format_str}`{voice_line}"
             )
             if result.youtube_id:
                 clean_yt_id = result.youtube_id.replace("_", "\\_")
@@ -101,13 +107,30 @@ async def process_video_generation(
 
         except Exception as e:
             logger.error(f"Error in video generation: {e}", exc_info=True)
-            await status_msg.edit_text(
-                f"❌ **Gagal Membuat Video**\n\n"
-                f"Terjadi kesalahan saat memproses video:\n`{str(e)}`\n\n"
-                f"Silakan coba lagi atau gunakan tombol generate di bawah.",
-                reply_markup=get_main_menu_keyboard(),
-                parse_mode="Markdown"
+            err_msg = str(e)
+            is_quota_error = (
+                isinstance(e, GoogleTTSQuotaExhaustedError)
+                or "GoogleTTSQuotaExhaustedError" in type(e).__name__
+                or "429" in err_msg
+                or "RESOURCE_EXHAUSTED" in err_msg
+                or "quota" in err_msg.lower()
             )
+            if is_quota_error:
+                await status_msg.edit_text(
+                    "⚠️ **Kuota Voice TTS Mencapai Batas**\n\n"
+                    "Model suara Google AI Studio sedang mencapai batas kuota (Rate Limit/Harian).\n"
+                    "Silakan tunggu sekitar 1 menit lalu coba lagi.",
+                    reply_markup=get_tts_retry_keyboard(),
+                    parse_mode="Markdown"
+                )
+            else:
+                await status_msg.edit_text(
+                    f"❌ **Gagal Membuat Video**\n\n"
+                    f"Terjadi kesalahan saat memproses video:\n`{str(e)}`\n\n"
+                    f"Silakan coba lagi atau gunakan tombol generate di bawah.",
+                    reply_markup=get_main_menu_keyboard(),
+                    parse_mode="Markdown"
+                )
 
 @router.message(Command("generate"))
 @router.message(F.text.in_({"🎬 Generate Video (1-Click)", "Generate Video", "🎬 Generate"}))
@@ -214,7 +237,7 @@ async def cb_yt_upload(call: CallbackQuery):
             title=video_record["title"],
             description=video_record["description"] or "",
             tags=(video_record["tags"] or "").split(),
-            privacy_status="public"
+            privacy_status=settings.YOUTUBE_PRIVACY_STATUS
         )
         if yt_id:
             await repo.update_youtube_id(video_id, yt_id)
@@ -224,6 +247,14 @@ async def cb_yt_upload(call: CallbackQuery):
                 f"▶️ Tonton sekarang:\n<a href=\"{yt_url}\">{yt_url}</a>",
                 parse_mode="HTML"
             )
+            # Update the original video action button to direct YouTube link
+            try:
+                from src.bot.keyboards.inline import get_video_actions_keyboard
+                await call.message.edit_reply_markup(
+                    reply_markup=get_video_actions_keyboard(video_id, youtube_id=yt_id)
+                )
+            except Exception:
+                pass
         else:
             await progress_msg.edit_text("❌ Gagal mengautentikasi ke YouTube Data API.")
     except Exception as e:
