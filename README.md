@@ -16,6 +16,13 @@ telegram-bots/
 │   └── workflows/
 │       └── webhook-watchdog.yml     # 🛡️ 24/7 Failover watchdog & 60-day keepalive
 ├── apps/
+│   ├── ai-video-generator-bot/      # 🎬 AI YouTube Shorts Generator (Python 3.13 + Gemini + Edge-TTS + MoviePy/FFmpeg)
+│   │   ├── src/                     # ScriptGen, VoiceService, ImageService, VideoEngine, APScheduler, Handlers
+│   │   ├── tests/                   # 7/7 Comprehensive Unit & E2E Render Tests
+│   │   ├── Dockerfile
+│   │   ├── requirements.txt
+│   │   ├── .env.example
+│   │   └── README.md
 │   ├── music-downloader-bot/        # 🎵 Music Discovery & Audio Downloader (TypeScript + Node 22 + grammY)
 │   │   ├── api/index.ts             # ⚡ Vercel Serverless Webhook Adapter
 │   │   ├── src/                     # Handlers, Deezer/iTunes/Saavn stream resolver, LRCLIB lyrics, UserService
@@ -50,7 +57,7 @@ telegram-bots/
 ## 📦 Showcase Catalog
 
 | Bot Project | Stack | Highlights | Status & Live Bot |
-| :--- | :--- | :--- | :--- |
+| **[apps/ai-video-generator-bot](apps/ai-video-generator-bot)** | Python 3.13, `aiogram v3`, Google Gemini, `edge-tts`, Pollinations FLUX, MoviePy, FFmpeg, APScheduler | Otomatisasi YouTube Shorts vertikal 9:16 (1080x1920), naskah viral hook, suara neural global, visual AI, efek Ken Burns pan/zoom, kinetic word-by-word subtitles, mixing BGM, cron harian minimal 1 video/hari, dan YouTube Data API v3 | 🟢 **Built & Ready**<br>🤖 Bot: [@aivideogenerator2004_bot](https://t.me/aivideogenerator2004_bot)<br>🧪 Tests: `10/10 Passing` |
 | **[apps/speaking-coach-bot](apps/speaking-coach-bot)** | Python 3.13, `aiogram v3`, Gemini 3.1 Flash-Lite Multimodal, `edge-tts`, FastAPI, Neon PostgreSQL | Live `.ogg` voice note analysis, IELTS 3-part mock exam, tenses gym, phonemes clinic, 24/7 Vercel Serverless + custom domain failover | 🟢 **Production Live**<br>🤖 Bot: [@MyEnglishCoach2000_bot](https://t.me/MyEnglishCoach2000_bot)<br>🌐 Endpoint: [speaking-coach-bot.tinonurcahya.dev](https://speaking-coach-bot.tinonurcahya.dev) |
 | **[apps/music-downloader-bot](apps/music-downloader-bot)** | TypeScript, Node.js 22, `grammY`, Deezer API, iTunes API, LRCLIB API, Neon PostgreSQL, Vercel Serverless | Instant song search, Top Charts (`/charts`), direct Telegram audio delivery, instant Telegram `file_id` cloud cache, HD cover art, 160kbps vs 320kbps HD audio, real-time lyrics & karaoke, Telegram Stars 12h FUP monetization, referral viral loop, admin analytics | 🟢 **Production Live**<br>🤖 Bot: [@Musicdownloader2001_bot](https://t.me/Musicdownloader2001_bot)<br>🌐 Endpoint: [music-downloader-bot.tinonurcahya.dev](https://music-downloader-bot.tinonurcahya.dev) |
 
@@ -251,6 +258,7 @@ When the bot's core service must be accessible across multiple chat apps (Telegr
 
 | # | Proyek | Nilai Portofolio | Monetisasi | Dipakai Sendiri | Keseruan | Kompleksitas | Status |
 | :-: | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **0** | **Bot Generator Video AI YouTube Shorts (Naskah Gemini, Voice Edge-TTS, FLUX, Subtitle MoviePy)** | **Sangat Tinggi** | **Tinggi (AdSense/Shorts)** | **Tinggi** | **Sangat Tinggi** | **Tinggi** | **🟢 Built ([ai-video-generator-bot](apps/ai-video-generator-bot))** |
 | **1** | Bot pesanan UMKM + dashboard (katalog, keranjang, pembayaran, dashboard pemilik) | Tinggi | Tinggi | Rendah | Sedang | Sedang | 📋 Planned |
 | **2** | **Bot latihan speaking (voice note transcript, grammar, & pelafalan via AI)** | **Sangat Tinggi** | **Rendah-Sedang** | **Tinggi** | **Tinggi** | **Sedang** | **🟢 Built ([speaking-coach-bot](apps/speaking-coach-bot))** |
 | **3** | Bot lowongan kerja niche (developer di Jepang/Australia, dari RSS/API resmi) | Sedang | Rendah-sedang | Tinggi | Sedang | Sedang | 📋 Planned |

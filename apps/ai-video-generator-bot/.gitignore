@@ -1,0 +1,23 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local Environment Variables & Secrets
+.env
+client_secrets.json
+client_secret_*.json
+youtube_token.json
+
+# Storage & Temporary Render Artifacts
+storage/temp/*
+storage/output/*
+*.db
+!storage/temp/.gitkeep
+!storage/output/.gitkeep
