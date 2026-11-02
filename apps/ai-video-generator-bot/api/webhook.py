@@ -4,8 +4,8 @@ import urllib.request
 import urllib.error
 from http.server import BaseHTTPRequestHandler
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-TARGET_CHAT_ID = os.environ.get("TARGET_CHAT_ID", "")
+BOT_TOKEN = os.environ.get("VIDEO_GEN_BOT_TOKEN") or os.environ.get("AI_SHORTS_BOT_TOKEN") or os.environ.get("BOT_TOKEN", "")
+TARGET_CHAT_ID = os.environ.get("VIDEO_GEN_TARGET_CHAT_ID") or os.environ.get("AI_SHORTS_TARGET_CHAT_ID") or os.environ.get("TARGET_CHAT_ID", "")
 GH_TOKEN = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "TinoNurcahya/telegram-bots")
 
