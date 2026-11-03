@@ -17,7 +17,22 @@ class ThumbnailService:
         self.siesta_dir = self.assets_dir / "characters" / "siesta"
 
     def _get_font(self, font_name: str, size: int) -> ImageFont.FreeTypeFont:
-        """Loads system font with fallback."""
+        """Loads project or system font with fallback."""
+        # 1. Project bundled fonts
+        project_candidates = [
+            settings.abs_assets_dir / "fonts" / font_name,
+            settings.abs_assets_dir / "fonts" / "Montserrat-Black.ttf",
+            settings.abs_assets_dir / "fonts" / "Arial-Bold.ttf",
+            settings.abs_assets_dir / "fonts" / "Impact.ttf",
+        ]
+        for pf in project_candidates:
+            if pf.exists():
+                try:
+                    return ImageFont.truetype(str(pf), size)
+                except Exception:
+                    pass
+
+        # 2. Windows system fonts
         win_fonts = Path("C:/Windows/Fonts")
         font_path = win_fonts / font_name
         if font_path.exists():
@@ -25,7 +40,20 @@ class ThumbnailService:
                 return ImageFont.truetype(str(font_path), size)
             except Exception:
                 pass
-        return ImageFont.load_default()
+
+        # 3. Linux system fonts
+        for lf in ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"]:
+            p = Path(lf)
+            if p.exists():
+                try:
+                    return ImageFont.truetype(str(p), size)
+                except Exception:
+                    pass
+
+        try:
+            return ImageFont.load_default(size=size)
+        except TypeError:
+            return ImageFont.load_default()
 
     def _clean_title_for_thumbnail(self, raw_title: str) -> List[str]:
         """Extracts 2-4 punchy, high-impact uppercase words from the title."""

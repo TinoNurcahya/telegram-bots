@@ -91,20 +91,25 @@ class VideoEngine:
 
         # Dynamic auto-scaling font to guarantee text fits within safe horizontal bounds
         max_allowed_w = int(width * max_w_ratio)
-        padding_x = 24
-        padding_y = 12
+        padding_x = 30
+        padding_y = 16
 
         possible_fonts = [
             settings.abs_assets_dir / "fonts" / "Montserrat-Black.ttf",
+            settings.abs_assets_dir / "fonts" / "Arial-Bold.ttf",
+            settings.abs_assets_dir / "fonts" / "Impact.ttf",
             settings.abs_assets_dir / "fonts" / "Poppins-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
             "arialbd.ttf",
+            "impact.ttf",
             "arial.ttf",
             "Arial",
         ]
 
-        font_size = 42
+        font_size = 60
         font = None
-        while font_size >= 24:
+        while font_size >= 36:
             for pf in possible_fonts:
                 try:
                     font = ImageFont.truetype(str(pf), font_size)
@@ -112,19 +117,22 @@ class VideoEngine:
                 except Exception:
                     continue
             if not font:
-                font = ImageFont.load_default()
+                try:
+                    font = ImageFont.load_default(size=font_size)
+                except TypeError:
+                    font = ImageFont.load_default()
 
             bbox = draw.textbbox((0, 0), line_str, font=font)
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
 
-            if (text_w + padding_x * 2) <= max_allowed_w or font_size <= 24:
+            if (text_w + padding_x * 2) <= max_allowed_w or font_size <= 36:
                 break
             font_size -= 2
 
-        # Subtitle positioning: Y ~ 75% height (cinema-style lower placement)
+        # Subtitle positioning: Y ~ 65% height (Safe Zone above YouTube Shorts UI & Siesta avatar)
         target_center_x = (width // 2) if (center_x is None) else center_x
-        center_y = int(height * 0.75)
+        center_y = int(height * 0.65)
         start_x = target_center_x - (text_w // 2)
 
         # Clamp horizontal boundaries so pill box never touches screen edges
@@ -140,7 +148,7 @@ class VideoEngine:
             start_x + text_w + padding_x,
             center_y + text_h + padding_y
         ]
-        draw.rounded_rectangle(pill_box, radius=18, fill=(15, 23, 42, 215))
+        draw.rounded_rectangle(pill_box, radius=22, fill=(15, 23, 42, 220))
 
         # Render each word
         curr_x = start_x
@@ -161,7 +169,7 @@ class VideoEngine:
                 word_str,
                 font=font,
                 fill=text_color,
-                stroke_width=3,
+                stroke_width=4,
                 stroke_fill=stroke_color
             )
             curr_x += w_width + space_w
@@ -171,10 +179,22 @@ class VideoEngine:
     def _group_words_into_chunks(
         self, words: List[WordTimestamp], chunk_size: int = 3
     ) -> List[List[WordTimestamp]]:
-        """Groups words into short, fast-reading kinetic subtitle groups."""
+        """Groups words into 2-3 words per chunk for fast, readable kinetic subtitles."""
+        if not words:
+            return []
         chunks = []
-        for i in range(0, len(words), chunk_size):
-            chunks.append(words[i:i + chunk_size])
+        i = 0
+        n = len(words)
+        while i < n:
+            remaining = n - i
+            if remaining == 4:
+                take = 2
+            elif remaining >= 3:
+                take = min(chunk_size, 3)
+            else:
+                take = remaining
+            chunks.append(words[i : i + take])
+            i += take
         return chunks
 
     def create_scene_clip(
@@ -245,8 +265,9 @@ class VideoEngine:
 
         # 4. Animated Avatar Host & Kinetic Subtitle Overlays
         has_avatar = bool(getattr(scene, "character_emotion", None))
-        sub_center_x = int(self.width * 0.38) if has_avatar else (self.width // 2)
-        sub_max_w_ratio = 0.58 if has_avatar else 0.84
+        # At 65% vertical height, subtitles sit safely in horizontal center above avatar
+        sub_center_x = self.width // 2
+        sub_max_w_ratio = 0.82
 
         layers = [base_clip]
 
