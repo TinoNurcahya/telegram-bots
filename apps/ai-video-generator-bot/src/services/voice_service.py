@@ -118,7 +118,11 @@ class VoiceService:
     ):
         self.api_key = api_key if api_key is not None else settings.GEMINI_API_KEY
         self.model_name = model_name or getattr(settings, "GEMINI_TTS_MODEL", "gemini-3.8-flash-tts")
-        self.client = genai.Client(api_key=self.api_key) if (genai and self.api_key) else None
+        self.client = (
+            genai.Client(api_key=self.api_key, http_options={"api_version": "v1beta"})
+            if (genai and self.api_key)
+            else None
+        )
 
     def pick_random_persona_and_voice(self) -> Tuple[str, str]:
         """
@@ -244,7 +248,8 @@ class VoiceService:
                                     voice_name=voice
                                 )
                             )
-                        )
+                        ),
+                        http_options={"api_version": "v1beta"}
                     )
                 )
 
