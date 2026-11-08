@@ -13,6 +13,8 @@ from src.services.youtube_service import YouTubeService
 from src.repositories.video_repo import VideoRepository
 from src.bot.keyboards.inline import (
     get_topic_selection_keyboard,
+    get_categories_keyboard,
+    get_category_topics_keyboard,
     get_video_actions_keyboard,
     get_main_menu_keyboard,
     get_tts_retry_keyboard
@@ -88,6 +90,8 @@ async def process_video_generation(
             if result.youtube_id:
                 clean_yt_id = result.youtube_id.replace("_", "\\_")
                 caption += f"\n\n▶️ **YouTube Shorts**:\nhttps://youtube.com/shorts/{clean_yt_id}"
+            elif getattr(result, "youtube_error", None):
+                caption += f"\n\n⚠️ **Status Upload YouTube**: _{result.youtube_error}_"
 
             video_file = FSInputFile(result.video_path)
             thumb_input = FSInputFile(result.thumbnail_path) if result.thumbnail_path and os.path.exists(result.thumbnail_path) else None
@@ -169,22 +173,105 @@ async def cmd_generate(message: Message):
 @router.message(Command("topics"))
 @router.message(F.text.in_({"🔍 Kategori Kasus", "Kategori Kasus", "Topics"}))
 async def cmd_topics(message: Message):
-    cats_preview = list(SIESTA_CATEGORIES.items())[:8]
-    categories_list = "\n".join([f"• **{name}**: {data['description']}" for name, data in cats_preview])
+    parts = message.text.split(maxsplit=1) if message.text else []
+    if len(parts) > 1 and parts[0].startswith("/topics"):
+        specific_topic = parts[1].strip()
+        status_text = f"⏳ **Menganalisis topik investigasi:**\n*\"{specific_topic}\"*..."
+        status_msg = await message.answer(status_text, parse_mode="Markdown")
+        await process_video_generation(
+            chat_id=message.chat.id,
+            status_msg=status_msg,
+            topic=specific_topic,
+            user_id=message.from_user.id
+        )
+        return
+
     text = (
-        "🔍 **Kategori Analisis & Dokumenter (100% Acak Saat Digenerate):**\n\n"
-        f"{categories_list}\n"
-        "• *...dan masih banyak lagi (Total 15+ Kategori Komprehensif)*\n\n"
-        "💡 *Klik tombol di bawah untuk langsung mengenerate video kasus acak:* "
+        "🔍 **15+ Kategori Investigasi & Misteri:**\n\n"
+        "Pilih salah satu kategori di bawah untuk melihat daftar topik siap render, "
+        "atau klik tombol acak untuk langsung membuat video:"
     )
     await message.answer(
         text,
-        reply_markup=get_topic_selection_keyboard(),
+        reply_markup=get_categories_keyboard(),
         parse_mode="Markdown"
     )
 
+@router.callback_query(F.data == "btn:topics_menu")
+async def cb_topics_menu(call: CallbackQuery):
+    text = (
+        "🔍 **15+ Kategori Investigasi & Misteri:**\n\n"
+        "Pilih salah satu kategori di bawah untuk melihat daftar topik siap render:"
+    )
+    try:
+        await call.message.edit_text(text, reply_markup=get_categories_keyboard(), parse_mode="Markdown")
+    except Exception:
+        await call.message.answer(text, reply_markup=get_categories_keyboard(), parse_mode="Markdown")
+    await call.answer()
+
+@router.callback_query(F.data.startswith("pick_cat:"))
+async def cb_pick_cat(call: CallbackQuery):
+    cat_idx = int(call.data.split(":")[1])
+    categories = list(SIESTA_CATEGORIES.items())
+    if 0 <= cat_idx < len(categories):
+        cat_name, cat_data = categories[cat_idx]
+        angles = cat_data.get("angles", [])
+        desc = cat_data.get("description", "")
+        text = (
+            f"💡 **Kategori: {cat_name}**\n\n"
+            f"_{desc}_\n\n"
+            f"Pilih salah satu topik investigasi di bawah untuk langsung merender video Shorts:"
+        )
+        try:
+            await call.message.edit_text(
+                text,
+                reply_markup=get_category_topics_keyboard(cat_idx, cat_name, angles),
+                parse_mode="Markdown"
+            )
+        except Exception:
+            await call.message.answer(
+                text,
+                reply_markup=get_category_topics_keyboard(cat_idx, cat_name, angles),
+                parse_mode="Markdown"
+            )
+    await call.answer()
+
+@router.callback_query(F.data.startswith("gen_topic:"))
+async def cb_gen_topic(call: CallbackQuery):
+    if settings.TARGET_CHAT_ID and settings.TARGET_CHAT_ID != 0:
+        if call.from_user.id != settings.TARGET_CHAT_ID and call.message.chat.id != settings.TARGET_CHAT_ID:
+            await call.answer("⛔ Akses Khusus: Hanya Admin Studio yang dapat memicu pembuatan video.", show_alert=True)
+            return
+
+    parts = call.data.split(":")
+    cat_idx = int(parts[1])
+    topic_idx = int(parts[2])
+    categories = list(SIESTA_CATEGORIES.items())
+    topic = None
+    if 0 <= cat_idx < len(categories):
+        _, cat_data = categories[cat_idx]
+        angles = cat_data.get("angles", [])
+        if 0 <= topic_idx < len(angles):
+            topic = angles[topic_idx]
+
+    status_text = (
+        f"⏳ **Mempersiapkan investigasi:**\n*\"{topic or 'Kasus Pilihan'}\"*..."
+    )
+    try:
+        status_msg = await call.message.edit_text(status_text, parse_mode="Markdown")
+    except Exception:
+        status_msg = await call.message.answer(status_text, parse_mode="Markdown")
+    await call.answer("Memulai render!")
+
+    await process_video_generation(
+        chat_id=call.message.chat.id,
+        status_msg=status_msg,
+        topic=topic,
+        user_id=call.from_user.id
+    )
+
 @router.callback_query(
-    F.data.in_({"btn:generate_instant", "btn:generate_prompt", "btn:trending_topics"}) | F.data.startswith("gen_topic:")
+    F.data.in_({"btn:generate_instant", "btn:generate_prompt", "btn:trending_topics"})
 )
 async def cb_generate_instant(call: CallbackQuery):
     if settings.TARGET_CHAT_ID and settings.TARGET_CHAT_ID != 0:

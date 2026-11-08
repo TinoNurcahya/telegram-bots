@@ -1,4 +1,6 @@
 import os
+import time
+import asyncio
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -29,6 +31,7 @@ class YouTubeService:
         base = Path(__file__).resolve().parent.parent.parent
         self.client_secrets_file = base / (client_secrets_file or settings.YOUTUBE_CLIENT_SECRETS_FILE)
         self.credentials_storage = base / (credentials_storage or settings.YOUTUBE_CREDENTIALS_STORAGE)
+        self.last_error: Optional[str] = None
         self._ensure_token_restored()
 
     def _ensure_token_restored(self):
@@ -106,55 +109,86 @@ class YouTubeService:
         privacy_status: str = "public"
     ) -> Optional[str]:
         """
-        Uploads .mp4 video to YouTube Shorts and sets custom thumbnail if provided.
-        Returns YouTube video ID if successful, or None if credentials not configured.
+        Uploads .mp4 video to YouTube Shorts with automatic 3x retry on transient failures.
+        Sets self.last_error if upload fails for transparent user feedback.
         """
+        self.last_error = None
         if not self.is_configured():
-            logger.warning("YouTube credentials not configured. Skipping automated upload.")
+            self.last_error = "Kredensial YouTube belum dikonfigurasi (file client_secrets.json atau token tidak ditemukan)."
+            logger.warning(self.last_error)
             return None
-
-        youtube = self.get_authenticated_service()
-        if not youtube:
-            logger.warning("Could not authenticate with YouTube.")
-            return None
-
-        import asyncio
 
         def _do_upload() -> Optional[str]:
-            body = {
-                "snippet": {
-                    "title": title[:100],
-                    "description": f"{description}\n\n#shorts #viral",
-                    "tags": tags,
-                    "categoryId": "27"  # Education
-                },
-                "status": {
-                    "privacyStatus": privacy_status,
-                    "selfDeclaredMadeForKids": False
-                }
-            }
+            max_attempts = 3
+            backoff_delays = [3, 6, 12]
 
-            media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True, mimetype="video/mp4")
-            request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
-
-            response = None
-            while response is None:
-                status, response = request.next_chunk()
-                if status:
-                    logger.info(f"YouTube upload progress: {int(status.progress() * 100)}%")
-
-            v_id = response.get("id")
-            logger.info(f"Successfully uploaded to YouTube: https://youtube.com/shorts/{v_id}")
-
-            # Set custom thumbnail if provided and supported
-            if v_id and thumbnail_path and os.path.exists(thumbnail_path):
+            for attempt in range(1, max_attempts + 1):
                 try:
-                    thumb_media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
-                    youtube.thumbnails().set(videoId=v_id, media_body=thumb_media).execute()
-                    logger.info(f"Custom thumbnail successfully set for YouTube video {v_id}")
-                except Exception as te:
-                    logger.warning(f"Could not set custom thumbnail via YouTube API (channel may need phone verification): {te}")
+                    youtube = self.get_authenticated_service()
+                    if not youtube:
+                        self.last_error = "Gagal mengautentikasi kredensial YouTube."
+                        logger.warning(self.last_error)
+                        return None
 
-            return v_id
+                    body = {
+                        "snippet": {
+                            "title": title[:100],
+                            "description": f"{description}\n\n#shorts #viral",
+                            "tags": tags,
+                            "categoryId": "27"  # Education
+                        },
+                        "status": {
+                            "privacyStatus": privacy_status,
+                            "selfDeclaredMadeForKids": False
+                        }
+                    }
+
+                    media = MediaFileUpload(str(video_path), chunksize=-1, resumable=True, mimetype="video/mp4")
+                    request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
+
+                    response = None
+                    while response is None:
+                        status, response = request.next_chunk()
+                        if status:
+                            logger.info(f"YouTube upload progress (attempt {attempt}): {int(status.progress() * 100)}%")
+
+                    v_id = response.get("id")
+                    logger.info(f"Successfully uploaded to YouTube: https://youtube.com/shorts/{v_id}")
+
+                    # Set custom thumbnail if provided and supported
+                    if v_id and thumbnail_path and os.path.exists(thumbnail_path):
+                        try:
+                            thumb_media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
+                            youtube.thumbnails().set(videoId=v_id, media_body=thumb_media).execute()
+                            logger.info(f"Custom thumbnail successfully set for YouTube video {v_id}")
+                        except Exception as te:
+                            logger.warning(f"Could not set custom thumbnail via YouTube API: {te}")
+
+                    self.last_error = None
+                    return v_id
+
+                except Exception as e:
+                    err_msg = str(e).lower()
+                    logger.error(f"YouTube upload attempt {attempt}/{max_attempts} failed: {e}")
+
+                    # Non-retryable errors
+                    if "quotaexceeded" in err_msg:
+                        self.last_error = "Kuota harian YouTube Data API (10.000 unit) telah habis untuk hari ini."
+                        break
+                    if "uploadlimitexceeded" in err_msg:
+                        self.last_error = "Batas upload harian channel YouTube tercapai."
+                        break
+                    if "invalid_grant" in err_msg:
+                        self.last_error = "Token otorisasi YouTube kadaluarsa. Perlu login ulang."
+                        break
+
+                    if attempt < max_attempts:
+                        delay = backoff_delays[attempt - 1]
+                        logger.info(f"Retrying YouTube upload in {delay}s...")
+                        time.sleep(delay)
+                    else:
+                        self.last_error = f"Gagal upload setelah 3x percobaan: {str(e)[:120]}"
+
+            return None
 
         return await asyncio.to_thread(_do_upload)

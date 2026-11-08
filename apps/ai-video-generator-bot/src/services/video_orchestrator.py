@@ -27,6 +27,7 @@ class FullVideoResult(BaseModel):
     duration: float
     video_path: str
     youtube_id: Optional[str] = None
+    youtube_error: Optional[str] = None
     thumbnail_path: Optional[str] = None
     voice_persona: Optional[str] = None
     voice_name: Optional[str] = None
@@ -184,6 +185,7 @@ class VideoOrchestrator:
 
             # 7. Optional: Upload to YouTube with custom thumbnail
             youtube_id = None
+            youtube_error = None
             if auto_upload_youtube and self.youtube_service.is_configured():
                 if progress_callback:
                     await progress_callback("📡 [4/4] Video selesai dirender! Mengupload otomatis ke YouTube Shorts...")
@@ -198,10 +200,19 @@ class VideoOrchestrator:
                     )
                     if youtube_id:
                         logger.info(f"[{job_id}] Auto-uploaded to YouTube Shorts: id={youtube_id}")
+                    else:
+                        youtube_error = self.youtube_service.last_error or "Gagal mengautentikasi atau mengunggah ke YouTube."
+                        logger.warning(f"[{job_id}] YouTube upload failed: {youtube_error}")
                 except Exception as ye:
+                    youtube_error = str(ye)
                     logger.warning(f"YouTube upload error: {ye}")
-            elif progress_callback:
-                await progress_callback("🚀 [4/4] Video selesai dirender! Mengirim file .mp4 ke Telegram...")
+            elif not auto_upload_youtube:
+                youtube_error = None
+            elif not self.youtube_service.is_configured():
+                youtube_error = "Kredensial YouTube belum dikonfigurasi di server (perlu client_secrets.json atau token)."
+            
+            if progress_callback:
+                await progress_callback("🚀 [4/4] Mengirim file video .mp4 ke Telegram...")
 
             # 8. Persist to Database
             tags_str = " ".join(script.tags)
@@ -227,6 +238,7 @@ class VideoOrchestrator:
                 duration=round(total_duration, 2),
                 video_path=str(final_output_path),
                 youtube_id=youtube_id,
+                youtube_error=youtube_error,
                 thumbnail_path=str(thumbnail_path) if thumbnail_path and thumbnail_path.exists() else None,
                 voice_persona=voice_result.persona_name,
                 voice_name=voice_result.voice_name

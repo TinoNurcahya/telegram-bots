@@ -15,15 +15,59 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_topic_selection_keyboard(topics: Optional[List[str]] = None) -> InlineKeyboardMarkup:
-    """Fallback keyboard allowing immediate random generation or returning home."""
-    buttons = [
-        [
-            InlineKeyboardButton(text="🎲 Generate Kasus Acak Sekarang", callback_data="btn:generate_instant"),
-        ],
-        [
-            InlineKeyboardButton(text="🔙 Menu Utama", callback_data="btn:main_menu")
-        ]
+    """Returns interactive categories selection keyboard."""
+    return get_categories_keyboard()
+
+def get_categories_keyboard() -> InlineKeyboardMarkup:
+    """Displays the 15 investigative/analytical categories with compact callback keys."""
+    CATEGORY_LABELS = [
+        "🧠 Dark Psychology",
+        "🕵️ Classified Enigmas",
+        "📜 Unsolved Mysteries",
+        "💥 What If? Scenarios",
+        "🌌 Cosmic Paradoxes",
+        "🌊 Deep Oceans & Nature",
+        "🔍 Forensic Deduction",
+        "🌀 Reality Glitches",
+        "🌋 Forbidden Terrains",
+        "🏛️ Lost Civilizations",
+        "⚛️ Quantum Paradoxes",
+        "🤯 Bizarre Facts",
+        "🧬 Brain Curiosities",
+        "⏳ Time Paradoxes",
+        "🔐 Cryptic Codes"
     ]
+
+    buttons = []
+    # Build 2-column keyboard for compact layout
+    row = []
+    for idx, label in enumerate(CATEGORY_LABELS):
+        row.append(InlineKeyboardButton(text=label, callback_data=f"pick_cat:{idx}"))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+
+    buttons.append([
+        InlineKeyboardButton(text="🎲 Kasus Acak (1-Click Random)", callback_data="btn:generate_instant"),
+        InlineKeyboardButton(text="🏠 Menu Utama", callback_data="btn:main_menu")
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+def get_category_topics_keyboard(cat_idx: int, cat_name: str, angles: List[str]) -> InlineKeyboardMarkup:
+    """Displays topics under the selected category."""
+    buttons = []
+    for t_idx, topic in enumerate(angles):
+        short_topic = topic[:42] + "..." if len(topic) > 42 else topic
+        buttons.append([
+            InlineKeyboardButton(text=f"🎬 {short_topic}", callback_data=f"gen_topic:{cat_idx}:{t_idx}")
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(text="🔙 Pilih Kategori Lain", callback_data="btn:topics_menu"),
+        InlineKeyboardButton(text="🏠 Menu Utama", callback_data="btn:main_menu")
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_video_actions_keyboard(video_id: int, youtube_id: Optional[str] = None, has_youtube_id: bool = False) -> InlineKeyboardMarkup:
@@ -36,7 +80,7 @@ def get_video_actions_keyboard(video_id: int, youtube_id: Optional[str] = None, 
         ])
     elif not has_youtube_id:
         buttons.append([
-            InlineKeyboardButton(text="🚀 Upload ke YouTube Shorts", callback_data=f"yt_upload:{video_id}")
+            InlineKeyboardButton(text="🔄 Coba Upload ke YouTube Lagi", callback_data=f"yt_upload:{video_id}")
         ])
     else:
         buttons.append([
