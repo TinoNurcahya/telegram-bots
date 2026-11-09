@@ -22,8 +22,16 @@ def test_random_topic():
 def test_five_daily_slots_use_distinct_categories():
     service = ScriptGeneratorService(api_key="")
     for day in [1, 10, 100, 313]:
+        # Slots 0..4 (Shorts) + Slot 5 (Long-Form) = 6 distinct categories per day
         categories_for_day = [
             service.get_rotated_case_prompt(slot_index=slot, day_of_year=day)["category"]
-            for slot in range(5)
+            for slot in range(6)
         ]
-        assert len(set(categories_for_day)) == 5
+        assert len(set(categories_for_day)) == 6
+
+def test_fallback_longform_script():
+    service = ScriptGeneratorService(api_key="")
+    script = service._get_fallback_longform_script("Antikythera Mechanism")
+    assert len(script.scenes) == 15
+    assert "#shorts" not in script.title.lower()
+    assert all("short" not in t.lower() for t in script.tags)

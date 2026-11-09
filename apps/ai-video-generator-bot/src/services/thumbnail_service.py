@@ -145,18 +145,23 @@ class ThumbnailService:
         if sprite_file.exists():
             try:
                 sprite = Image.open(sprite_file).convert("RGBA")
-                target_h = int(height * 0.78)
+                is_landscape = width > height
+                target_h = int(height * (0.94 if is_landscape else 0.78))
                 sw, sh = sprite.size
                 target_w = int(sw * (target_h / sh))
                 sprite_resized = sprite.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
-                pos_x = (width - target_w) // 2
-                pos_y = height - target_h + 10
+                if is_landscape:
+                    pos_x = width - target_w - 15
+                    pos_y = height - target_h + 10
+                else:
+                    pos_x = (width - target_w) // 2
+                    pos_y = height - target_h + 10
 
                 # Soft vignette gradient mask at the top of the sprite to eliminate hard edges
                 mask = Image.new("L", (target_w, target_h), 255)
                 m_draw = ImageDraw.Draw(mask)
-                fade_h = 70
+                fade_h = 50 if is_landscape else 70
                 for fy in range(fade_h):
                     alpha = int(255 * (fy / fade_h) ** 2)
                     m_draw.line([(0, fy), (target_w, fy)], fill=alpha)
@@ -165,8 +170,9 @@ class ThumbnailService:
             except Exception as e:
                 logger.warning(f"Failed to composite Siesta sprite into thumbnail: {e}")
 
-        # 4. Dark Top Vignette for Maximum Text Readability
-        top_grad = Image.new("RGBA", (width, int(height * 0.44)), (0, 0, 0, 0))
+        # 4. Dark Vignette for Maximum Text Readability
+        is_landscape = width > height
+        top_grad = Image.new("RGBA", (width, int(height * (0.55 if is_landscape else 0.44))), (0, 0, 0, 0))
         t_draw = ImageDraw.Draw(top_grad)
         for y in range(top_grad.height):
             alpha = int(245 * (1 - (y / top_grad.height) ** 1.3))
@@ -186,8 +192,8 @@ class ThumbnailService:
         padding_y = 10
         badge_w = tw + dot_radius * 2 + 16 + padding_x * 2
         badge_h = th + padding_y * 2
-        bx = (width - badge_w) // 2
-        by = 80
+        bx = 64 if is_landscape else (width - badge_w) // 2
+        by = 110 if is_landscape else 80
 
         draw.rounded_rectangle(
             [bx, by, bx + badge_w, by + badge_h],
@@ -208,13 +214,13 @@ class ThumbnailService:
 
         # 6. High-CTR Bold Title
         title_lines = self._clean_title_for_thumbnail(title)
-        font_title = self._get_font("impact.ttf", 66)
-        cur_y = by + badge_h + 20
+        font_title = self._get_font("impact.ttf", 74 if is_landscape else 66)
+        cur_y = by + badge_h + 24
 
         for i, line in enumerate(title_lines):
             l_box = draw.textbbox((0, 0), line, font=font_title)
             lw = l_box[2] - l_box[0]
-            lx = (width - lw) // 2
+            lx = 64 if is_landscape else (width - lw) // 2
             # Alternating colors: yellow accent for punch line, white for base
             color = (255, 228, 45) if (i == len(title_lines) - 1 and len(title_lines) > 1) else (255, 255, 255)
 
@@ -222,7 +228,7 @@ class ThumbnailService:
             for ox, oy in [(-3, -3), (3, -3), (-3, 3), (3, 3), (0, 4), (0, -4), (4, 0), (-4, 0)]:
                 draw.text((lx + ox, cur_y + oy), line, font=font_title, fill=(0, 0, 0))
             draw.text((lx, cur_y), line, font=font_title, fill=color)
-            cur_y += 76
+            cur_y += 84 if is_landscape else 76
 
         bg.save(str(output_path), "JPEG", quality=95)
         logger.info(f"Generated High-CTR Siesta thumbnail: {output_path}")

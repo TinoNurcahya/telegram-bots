@@ -44,15 +44,33 @@ class DailyVideoScheduler:
                 replace_existing=True
             )
 
+        # Also register the daily 16:9 Long-Form Documentary slot (default 20:15 WIB)
+        if getattr(settings, "LONGFORM_SCHEDULE_TIME", ""):
+            lf_parts = settings.LONGFORM_SCHEDULE_TIME.strip().split(":")
+            lf_hour = int(lf_parts[0]) if len(lf_parts) > 0 else 20
+            lf_min = int(lf_parts[1]) if len(lf_parts) > 1 else 15
+            self.scheduler.add_job(
+                self.execute_daily_longform,
+                trigger=CronTrigger(hour=lf_hour, minute=lf_min, timezone=settings.SCHEDULER_TIMEZONE),
+                id="daily_longform_documentary",
+                name=f"Daily 16:9 Long-Form Documentary ({settings.LONGFORM_SCHEDULE_TIME})",
+                replace_existing=True
+            )
+
         self.scheduler.start()
         logger.info(
-            f"Daily Video Scheduler started with {len(schedule_times)} staggered slots: "
-            f"{', '.join(schedule_times)} ({settings.SCHEDULER_TIMEZONE})"
+            f"Daily Video Scheduler started: {len(schedule_times)} Shorts slots ({', '.join(schedule_times)}) + "
+            f"1 Long-Form slot ({settings.LONGFORM_SCHEDULE_TIME}) [{settings.SCHEDULER_TIMEZONE}]"
         )
 
-    async def execute_daily_run(self) -> None:
+    async def execute_daily_longform(self) -> None:
+        """Executes the automated daily 16:9 Long-Form Documentary generation."""
+        logger.info("🎥 Triggering Automated Daily 16:9 Long-Form Documentary Generation...")
+        await self.execute_daily_run(video_format="longform")
+
+    async def execute_daily_run(self, video_format: str = "shorts") -> None:
         """Executes the automated daily video generation and broadcasts to target chat."""
-        logger.info("⏰ Triggering Automated Daily AI Shorts Generation...")
+        logger.info(f"⏰ Triggering Automated Daily AI Video Generation ({video_format})...")
 
         try:
             # 1. Orchestrate video generation
@@ -60,7 +78,8 @@ class DailyVideoScheduler:
                 topic=None,  # Uses deterministic slot rotation + dynamic AI case discovery
                 user_id=settings.TARGET_CHAT_ID if settings.TARGET_CHAT_ID else None,
                 trigger_type="scheduled",
-                auto_upload_youtube=settings.AUTO_UPLOAD_YOUTUBE
+                auto_upload_youtube=settings.AUTO_UPLOAD_YOUTUBE,
+                video_format=video_format
             )
 
             # 2. Broadcast video to Telegram Chat / Channel if bot & chat_id are present

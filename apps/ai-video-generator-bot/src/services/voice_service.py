@@ -336,95 +336,104 @@ class VoiceService:
         if voice:
             chosen_voice = voice
 
-        # Combine narration texts with natural storytelling pauses
-        full_narration = " ... ".join(
-            getattr(s, "voiceover_text", "").strip() for s in scenes if getattr(s, "voiceover_text", "").strip()
-        )
+        # Split scenes into batches of at most 6 scenes (1 batch for Shorts, 3 batches for 15-scene Long-Form)
+        batch_size = 6 if len(scenes) <= 7 else 5
+        batches = [scenes[idx : idx + batch_size] for idx in range(0, len(scenes), batch_size)]
 
         logger.info(
-            f"Synthesizing full voiceover with Google AI Studio [Persona: '{chosen_persona}' | Voice: '{chosen_voice}']..."
+            f"Synthesizing voiceover with Google AI Studio [Persona: '{chosen_persona}' | Voice: '{chosen_voice}' | "
+            f"Scenes: {len(scenes)} across {len(batches)} batch(es)]..."
         )
 
-        # Generate audio with auto-retry and Telegram countdown if rate limit (3 RPM) is hit
         max_retries = 2
         retry_delay = 25
-        pcm_bytes = None
-
-        for attempt in range(max_retries + 1):
-            try:
-                pcm_bytes = await asyncio.to_thread(
-                    self._generate_google_tts_pcm,
-                    full_narration,
-                    chosen_persona,
-                    chosen_voice
-                )
-                break
-            except Exception as e:
-                err_str = str(e)
-                is_quota = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower()
-                if is_quota and attempt < max_retries:
-                    logger.warning(f"Google AI Studio TTS hit rate limit (attempt {attempt + 1}/{max_retries}). Auto-retrying in {retry_delay}s...")
-                    for remaining in range(retry_delay, 0, -5):
-                        if progress_callback:
-                            try:
-                                await progress_callback(
-                                    f"⏳ [2/4] Kuota Google AI Studio TTS penuh (Rate Limit 3 RPM).\n"
-                                    f"Mencoba lagi secara otomatis dalam *{remaining} detik* (Percobaan {attempt + 1}/{max_retries})..."
-                                )
-                            except Exception:
-                                pass
-                        await asyncio.sleep(min(5, remaining))
-                    continue
-
-                if is_quota:
-                    raise GoogleTTSQuotaExhaustedError(
-                        "Kuota Google AI Studio TTS telah mencapai batas (Rate Limit / Kuota Harian)."
-                    ) from e
-                raise e
-
-        full_wav_path = output_dir / "voiceover_full.wav"
-        total_duration = self._save_pcm_to_wav(pcm_bytes, full_wav_path, sample_rate=24000)
-
-        # Calculate character weight per scene to slice WAV data proportionally
-        scene_weights = [
-            max(len(getattr(s, "voiceover_text", "")), 10) for s in scenes
-        ]
-        total_weight = sum(scene_weights)
-        total_bytes = len(pcm_bytes)
-
+        all_pcm_chunks: List[bytes] = []
         scene_results: List[AudioSceneResult] = []
-        byte_cursor = 0
 
-        for i, scene in enumerate(scenes):
-            scene_num = getattr(scene, "scene_number", i + 1)
-            weight = scene_weights[i]
-            
-            # Last scene takes whatever remains to prevent rounding gaps
-            if i == len(scenes) - 1:
-                scene_pcm = pcm_bytes[byte_cursor:]
-            else:
-                chunk_len = int((weight / total_weight) * total_bytes)
-                # Ensure 16-bit alignment (even number of bytes)
-                if chunk_len % 2 != 0:
-                    chunk_len += 1
-                scene_pcm = pcm_bytes[byte_cursor: byte_cursor + chunk_len]
-                byte_cursor += chunk_len
+        for b_idx, batch_scenes in enumerate(batches):
+            if b_idx > 0 and self.client:
+                # Respect 3 RPM free-tier rate limit between multi-chapter batches
+                logger.info(f"Pausing 21s before synthesizing Chapter {b_idx + 1}/{len(batches)}...")
+                await asyncio.sleep(21)
 
-            scene_wav_path = output_dir / f"scene_{scene_num}.wav"
-            scene_duration = self._save_pcm_to_wav(scene_pcm, scene_wav_path, sample_rate=24000)
-
-            # Subtitle text for kinetic timing
-            sub_text = getattr(scene, "subtitle_text", None) or getattr(scene, "voiceover_text", "")
-            words = self._build_word_timestamps(sub_text, scene_duration, start_offset=0.0)
-
-            scene_results.append(
-                AudioSceneResult(
-                    scene_number=scene_num,
-                    audio_path=str(scene_wav_path),
-                    duration=scene_duration,
-                    words=words
-                )
+            batch_narration = " ... ".join(
+                getattr(s, "voiceover_text", "").strip() for s in batch_scenes if getattr(s, "voiceover_text", "").strip()
             )
+
+            pcm_bytes = None
+            for attempt in range(max_retries + 1):
+                try:
+                    pcm_bytes = await asyncio.to_thread(
+                        self._generate_google_tts_pcm,
+                        batch_narration,
+                        chosen_persona,
+                        chosen_voice
+                    )
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    is_quota = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower()
+                    if is_quota and attempt < max_retries:
+                        logger.warning(f"Google AI Studio TTS hit rate limit (attempt {attempt + 1}/{max_retries}). Auto-retrying in {retry_delay}s...")
+                        for remaining in range(retry_delay, 0, -5):
+                            if progress_callback:
+                                try:
+                                    await progress_callback(
+                                        f"⏳ [2/4] Kuota Google AI Studio TTS penuh (Rate Limit 3 RPM).\n"
+                                        f"Mencoba lagi secara otomatis dalam *{remaining} detik* (Percobaan {attempt + 1}/{max_retries})..."
+                                    )
+                                except Exception:
+                                    pass
+                            await asyncio.sleep(min(5, remaining))
+                        continue
+
+                    if is_quota:
+                        raise GoogleTTSQuotaExhaustedError(
+                            "Kuota Google AI Studio TTS telah mencapai batas (Rate Limit / Kuota Harian)."
+                        ) from e
+                    raise e
+
+            all_pcm_chunks.append(pcm_bytes)
+
+            # Calculate character weight per scene within this batch to slice WAV data proportionally
+            scene_weights = [
+                max(len(getattr(s, "voiceover_text", "")), 10) for s in batch_scenes
+            ]
+            total_weight = sum(scene_weights)
+            total_bytes = len(pcm_bytes)
+            byte_cursor = 0
+
+            for i, scene in enumerate(batch_scenes):
+                scene_num = getattr(scene, "scene_number", (b_idx * batch_size) + i + 1)
+                weight = scene_weights[i]
+
+                if i == len(batch_scenes) - 1:
+                    scene_pcm = pcm_bytes[byte_cursor:]
+                else:
+                    chunk_len = int((weight / total_weight) * total_bytes)
+                    if chunk_len % 2 != 0:
+                        chunk_len += 1
+                    scene_pcm = pcm_bytes[byte_cursor : byte_cursor + chunk_len]
+                    byte_cursor += chunk_len
+
+                scene_wav_path = output_dir / f"scene_{scene_num}.wav"
+                scene_duration = self._save_pcm_to_wav(scene_pcm, scene_wav_path, sample_rate=24000)
+
+                sub_text = getattr(scene, "subtitle_text", None) or getattr(scene, "voiceover_text", "")
+                words = self._build_word_timestamps(sub_text, scene_duration, start_offset=0.0)
+
+                scene_results.append(
+                    AudioSceneResult(
+                        scene_number=scene_num,
+                        audio_path=str(scene_wav_path),
+                        duration=scene_duration,
+                        words=words
+                    )
+                )
+
+        combined_pcm = b"".join(all_pcm_chunks)
+        full_wav_path = output_dir / "voiceover_full.wav"
+        total_duration = self._save_pcm_to_wav(combined_pcm, full_wav_path, sample_rate=24000)
 
         logger.info(
             f"Successfully generated Google AI Studio voiceover: {total_duration:.2f}s across {len(scene_results)} scenes. "

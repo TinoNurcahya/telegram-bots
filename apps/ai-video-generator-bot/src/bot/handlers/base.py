@@ -20,7 +20,9 @@ async def cmd_start(message: Message):
         f"🎙️ **Suara Neural**: Natural English Female (*{settings.VOICE_NAME}*) dengan intonasi memikat & jernih.\n"
         f"🔤 **Subtitel**: English kinetic subtitles dinamis tersinkronisasi presisi per kata.\n"
         f"🎲 **1-Click Instant Random**: Sekali klik langsung memproduksi video kasus misteri, sains, atau paradoks secara acak dari 15+ kategori lengkap!\n\n"
-        f"📅 **Otomasi Harian (5x/Hari)**: Terjadwal pukul `{', '.join(settings.daily_schedule_times)}` ({settings.SCHEDULER_TIMEZONE}) & otomatis upload ke YouTube.\n"
+        f"📅 **Otomasi Harian (6 Video/Hari)**:\n"
+        f"  • **5x Shorts (9:16)**: `{', '.join(settings.daily_schedule_times)}` WIB\n"
+        f"  • **1x Dokumenter Panjang (16:9)**: `{settings.LONGFORM_SCHEDULE_TIME}` WIB\n"
         f"🎯 **Format Video**: Vertikal 9:16 (1080x1920) optimal untuk YouTube Shorts, Reels, & TikTok.\n\n"
         f"👇 *Pilih menu cepat di bawah atau klik tombol inline:* "
     )
@@ -61,7 +63,8 @@ async def cmd_status(message: Message):
     text = (
         f"⚙️ **Status Sistem AI Shorts Studio**\n\n"
         f"📶 **Latency Ping**: `{latency:.1f} ms`\n"
-        f"⏰ **Scheduler (5x/Hari)**: `{scheduler_status}` (`{schedule_display}` {settings.SCHEDULER_TIMEZONE})\n"
+        f"⏰ **Shorts (5x/Hari)**: `{scheduler_status}` (`{schedule_display}` {settings.SCHEDULER_TIMEZONE})\n"
+        f"🎥 **Long-Form 16:9 (1x/Hari)**: `{scheduler_status}` (`{settings.LONGFORM_SCHEDULE_TIME}` {settings.SCHEDULER_TIMEZONE})\n"
         f"🎙️ **Voice Neural**: `{settings.VOICE_NAME}`\n"
         f"📐 **Resolusi Video**: `{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT}` (9:16 @ {settings.FPS}fps)\n"
         f"👥 **Total Pengguna Terdaftar**: `{stats['total_users']}`\n"
@@ -118,7 +121,8 @@ async def cb_system_info(call: CallbackQuery):
         f"🤖 **Model AI**: `{settings.GEMINI_MODEL}`\n"
         f"🎙️ **Voice**: `{settings.VOICE_NAME}`\n"
         f"📐 **Format Video**: `{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT}` (9:16 Vertical)\n"
-        f"⏰ **Jadwal (5x/Hari)**: `{scheduler_status}` (`{schedule_display}`)\n"
+        f"⏰ **Shorts (5x/Hari)**: `{scheduler_status}` (`{schedule_display}`)\n"
+        f"🎥 **Long-Form 16:9 (1x/Hari)**: `{scheduler_status}` (`{settings.LONGFORM_SCHEDULE_TIME}`)\n"
         f"💾 **Storage Database**: `{settings.DATABASE_PATH}`\n"
         f"🆔 **Chat ID Anda**: `{call.message.chat.id}`"
     )

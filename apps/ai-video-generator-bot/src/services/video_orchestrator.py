@@ -26,6 +26,7 @@ class FullVideoResult(BaseModel):
     tags: List[str]
     duration: float
     video_path: str
+    video_format: str = "shorts"
     youtube_id: Optional[str] = None
     youtube_error: Optional[str] = None
     thumbnail_path: Optional[str] = None
@@ -55,24 +56,39 @@ class VideoOrchestrator:
         self.thumbnail_service = thumbnail_service or ThumbnailService()
         self.repo = repo or VideoRepository()
 
+    @staticmethod
+    def _format_mmss(seconds: float) -> str:
+        total_sec = max(0, int(seconds))
+        mins = total_sec // 60
+        secs = total_sec % 60
+        return f"{mins:02d}:{secs:02d}"
+
     async def create_short_video(
         self,
         topic: Optional[str] = None,
         user_id: Optional[int] = None,
         trigger_type: str = "manual",
         auto_upload_youtube: bool = False,
-        progress_callback = None
+        progress_callback = None,
+        video_format: str = "shorts"
     ) -> FullVideoResult:
         """
-        Executes end-to-end pipeline:
-        1. Gemini Scripting -> 2. Edge-TTS -> 3. Pollinations FLUX -> 4. MoviePy Render -> 5. DB save
+        Executes end-to-end pipeline for either 9:16 Shorts ('shorts') or 16:9 Long-Form Documentary ('longform'):
+        1. Gemini Scripting -> 2. Google AI Studio TTS -> 3. Visuals -> 4. MoviePy Render -> 5. YouTube & DB save
         """
+        is_longform = (video_format or "shorts").lower() == "longform"
+        target_w = settings.LONGFORM_WIDTH if is_longform else settings.VIDEO_WIDTH
+        target_h = settings.LONGFORM_HEIGHT if is_longform else settings.VIDEO_HEIGHT
+
         job_id = f"job_{uuid.uuid4().hex[:8]}"
         job_temp_dir = settings.abs_temp_dir / job_id
         job_temp_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"Starting Video Generation Job [{job_id}] for topic: {topic or 'Trending Auto'}")
-        await self.repo.log_generation(trigger_type, topic or "Auto", "in_progress")
+        logger.info(
+            f"Starting Video Generation Job [{job_id}] | Format: {video_format.upper()} ({target_w}x{target_h}) | "
+            f"Topic: {topic or 'Rotated Auto'}"
+        )
+        await self.repo.log_generation(trigger_type, topic or f"Auto-{video_format}", "in_progress")
 
         try:
             # 1. Gather recent topics from DB to prevent duplicates and generate Structured Script with Gemini
@@ -87,10 +103,16 @@ class VideoOrchestrator:
             except Exception:
                 pass
 
-            script: VideoScript = await self.script_service.generate_script(
-                topic=topic,
-                excluded_topics=excluded_topics
-            )
+            if is_longform:
+                script: VideoScript = await self.script_service.generate_longform_script(
+                    topic=topic,
+                    excluded_topics=excluded_topics
+                )
+            else:
+                script: VideoScript = await self.script_service.generate_script(
+                    topic=topic,
+                    excluded_topics=excluded_topics
+                )
             logger.info(f"[{job_id}] Script generated: '{script.title}' (Category: {script.category}) with {len(script.scenes)} scenes.")
 
             # Pick persona & voice for varied studio delivery
@@ -102,7 +124,7 @@ class VideoOrchestrator:
                     f"Sedang merekam suara Google AI Studio: *{chosen_persona}* (Suara: *{chosen_voice}*)..."
                 )
 
-            # 2. Synthesize complete narration with Google AI Studio TTS (1 Request for entire video)
+            # 2. Synthesize complete narration with Google AI Studio TTS
             voice_result = await self.voice_service.synthesize_full_voiceover(
                 scenes=script.scenes,
                 output_dir=job_temp_dir,
@@ -116,8 +138,15 @@ class VideoOrchestrator:
             scene_inputs: List[VideoSceneInput] = []
             total_duration = 0.0
             used_media_ids = set()
+            act_2_start = 0.0
+            act_3_start = 0.0
 
-            for scene in script.scenes:
+            for idx, scene in enumerate(script.scenes):
+                if idx == 5:
+                    act_2_start = total_duration
+                elif idx == 10:
+                    act_3_start = total_duration
+
                 audio_res = audio_map.get(scene.scene_number)
                 if not audio_res:
                     raise RuntimeError(f"Missing Google AI Studio voiceover audio for scene {scene.scene_number}")
@@ -128,8 +157,8 @@ class VideoOrchestrator:
                     prompt=scene.visual_prompt,
                     keywords=scene.keywords,
                     output_dir=job_temp_dir,
-                    width=settings.VIDEO_WIDTH,
-                    height=settings.VIDEO_HEIGHT,
+                    width=target_w,
+                    height=target_h,
                     used_media_ids=used_media_ids
                 )
 
@@ -145,9 +174,21 @@ class VideoOrchestrator:
                 )
                 total_duration += audio_res.duration
 
+            # Append YouTube Timestamp Chapters for Long-Form SEO & retention
+            if is_longform and len(scene_inputs) >= 12:
+                chapters_block = (
+                    f"\n\n📑 Documentary Chapters:\n"
+                    f"00:00 Act I: The Anomaly & Origins\n"
+                    f"{self._format_mmss(act_2_start)} Act II: The Forensic Investigation\n"
+                    f"{self._format_mmss(act_3_start)} Act III: The Unsettling Conclusion"
+                )
+                if "00:00" not in script.description:
+                    script.description = f"{script.description.strip()}{chapters_block}"
+
             if progress_callback:
+                aspect_label = "16:9 Widescreen" if is_longform else "9:16 Vertikal"
                 await progress_callback(
-                    f"🎞️ [3/4] Audio & visual lengkap! Merender video vertikal 9:16...\n"
+                    f"🎞️ [3/4] Audio & visual lengkap! Merender video {aspect_label}...\n"
                     f"Efek Ken Burns pan/zoom & subtitle kinetik sedang disusun..."
                 )
 
@@ -168,7 +209,7 @@ class VideoOrchestrator:
                     bgm_file = random.choice(candidates) if candidates else random.choice(audio_files)
                     logger.info(f"Selected BGM for job [{job_id}]: {bgm_file.name}")
 
-            # 5. Generate High-CTR Siesta Thumbnail (To be baked into Frame 0 for YouTube Shorts)
+            # 5. Generate High-CTR Siesta Thumbnail (9:16 for Shorts, 16:9 for Long-Form)
             thumbnail_path = settings.abs_output_dir / f"thumb_{job_id}.jpg"
             try:
                 first_bg = scene_inputs[0].image_path if scene_inputs else None
@@ -179,22 +220,28 @@ class VideoOrchestrator:
                     output_path=thumbnail_path,
                     emotion=first_emotion,
                     bg_image_path=first_bg,
-                    width=settings.VIDEO_WIDTH,
-                    height=settings.VIDEO_HEIGHT
+                    width=target_w,
+                    height=target_h
                 )
             except Exception as te:
                 logger.warning(f"[{job_id}] Thumbnail generation failed: {te}")
                 thumbnail_path = None
 
-            # 6. Composite and Render Video with MoviePy (Bakes thumbnail into Frame 0)
-            output_filename = f"short_{job_id}.mp4"
+            # 6. Composite and Render Video with MoviePy
+            prefix = "doc" if is_longform else "short"
+            output_filename = f"{prefix}_{job_id}.mp4"
             final_output_path = settings.abs_output_dir / output_filename
 
-            await self.video_engine.render_video(
+            engine = (
+                VideoEngine(width=target_w, height=target_h, fps=settings.FPS)
+                if is_longform
+                else self.video_engine
+            )
+            await engine.render_video(
                 scenes=scene_inputs,
                 output_path=final_output_path,
                 bgm_path=bgm_file,
-                intro_thumbnail_path=thumbnail_path
+                intro_thumbnail_path=None if is_longform else thumbnail_path
             )
 
             # 7. Optional: Upload to YouTube with custom thumbnail
@@ -202,7 +249,7 @@ class VideoOrchestrator:
             youtube_error = None
             if auto_upload_youtube and self.youtube_service.is_configured():
                 if progress_callback:
-                    await progress_callback("📡 [4/4] Video selesai dirender! Mengupload otomatis ke YouTube Shorts...")
+                    await progress_callback("📡 [4/4] Video selesai dirender! Mengupload otomatis ke YouTube...")
                 try:
                     youtube_id = await self.youtube_service.upload_video(
                         video_path=final_output_path,
@@ -210,10 +257,11 @@ class VideoOrchestrator:
                         description=script.description,
                         tags=script.tags,
                         thumbnail_path=thumbnail_path,
-                        privacy_status=settings.YOUTUBE_PRIVACY_STATUS
+                        privacy_status=settings.YOUTUBE_PRIVACY_STATUS,
+                        is_short=not is_longform
                     )
                     if youtube_id:
-                        logger.info(f"[{job_id}] Auto-uploaded to YouTube Shorts: id={youtube_id}")
+                        logger.info(f"[{job_id}] Auto-uploaded to YouTube ({video_format}): id={youtube_id}")
                     else:
                         youtube_error = self.youtube_service.last_error or "Gagal mengautentikasi atau mengunggah ke YouTube."
                         logger.warning(f"[{job_id}] YouTube upload failed: {youtube_error}")
@@ -251,6 +299,7 @@ class VideoOrchestrator:
                 tags=script.tags,
                 duration=round(total_duration, 2),
                 video_path=str(final_output_path),
+                video_format=video_format,
                 youtube_id=youtube_id,
                 youtube_error=youtube_error,
                 thumbnail_path=str(thumbnail_path) if thumbnail_path and thumbnail_path.exists() else None,

@@ -96,7 +96,8 @@ class ImageService:
     ) -> bool:
         """Generates authentic 2D Studio Ghibli anime artwork using Pollinations AI."""
         try:
-            ghibli_tag = "masterpiece Studio Ghibli anime aesthetic, Hayao Miyazaki style, lush watercolor illustration, beautiful atmospheric lighting, 9:16 vertical anime scenery"
+            aspect_desc = "16:9 widescreen cinematic anime scenery" if width > height else "9:16 vertical anime scenery"
+            ghibli_tag = f"masterpiece Studio Ghibli anime aesthetic, Hayao Miyazaki style, lush watercolor illustration, beautiful atmospheric lighting, {aspect_desc}"
             if prompt and len(prompt) > 20:
                 full_prompt = f"{prompt}, {ghibli_tag}"
             elif keywords:
@@ -191,7 +192,8 @@ class ImageService:
         try:
             query = " ".join(keywords[:2]) if keywords else "mysterious landscape"
             page = random.randint(1, 3)
-            url = f"https://api.pexels.com/v1/search?query={urllib.parse.quote(query)}&orientation=portrait&per_page=15&page={page}"
+            orientation = "landscape" if width > height else "portrait"
+            url = f"https://api.pexels.com/v1/search?query={urllib.parse.quote(query)}&orientation={orientation}&per_page=15&page={page}"
             headers = {
                 "Authorization": self.pexels_api_key,
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"

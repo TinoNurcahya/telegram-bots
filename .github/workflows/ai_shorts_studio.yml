@@ -2,19 +2,23 @@ name: AI Shorts Studio Daily Production
 
 on:
   schedule:
-    # 5x Daily Auto-Generate (Staggered Prime-Time Schedule in WIB / UTC+7)
-    # Leaves 1 quota slot (1,750 / 10,000 units) for on-demand manual /generate
-    - cron: '0 6 * * *'    # Slot 1: 13:00 WIB
-    - cron: '0 9 * * *'    # Slot 2: 16:00 WIB
-    - cron: '0 12 * * *'   # Slot 3: 19:00 WIB
-    - cron: '30 14 * * *'  # Slot 4: 21:30 WIB
-    - cron: '30 16 * * *'  # Slot 5: 23:30 WIB
+    # 5x Daily Shorts (9:16) + 1x Daily Long-Form Documentary (16:9) = 6 Videos/Day (9,900 / 10,000 YouTube API Quota Units)
+    - cron: '0 6 * * *'    # Shorts Slot 1: 13:00 WIB
+    - cron: '0 9 * * *'    # Shorts Slot 2: 16:00 WIB
+    - cron: '0 12 * * *'   # Shorts Slot 3: 19:00 WIB
+    - cron: '15 13 * * *'  # Long-Form Documentary (16:9, 4-6m): 20:15 WIB
+    - cron: '30 14 * * *'  # Shorts Slot 4: 21:30 WIB
+    - cron: '30 16 * * *'  # Shorts Slot 5: 23:30 WIB
   workflow_dispatch:
     inputs:
       topic:
-        description: 'Custom Video Topic (Leave empty for random 15+ mystery & science categories)'
+        description: 'Custom Video Topic (Leave empty for rotated mystery & science categories)'
         required: false
         default: ''
+      format:
+        description: 'Video format: shorts (9:16) or longform (16:9 Documentary)'
+        required: false
+        default: 'shorts'
   repository_dispatch:
     types: [generate-video]
 
@@ -26,7 +30,7 @@ jobs:
   render_and_publish:
     name: Generate Video & Publish
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout Repository
@@ -61,11 +65,15 @@ jobs:
           AUTO_UPLOAD_YOUTUBE: 'true'
           ENABLE_DAILY_SCHEDULER: 'false'
         run: |
-          # Determine topic from workflow_dispatch or repository_dispatch
+          # Determine topic and format from schedule, workflow_dispatch, or repository_dispatch
           TOPIC="${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}"
-          echo "Running with topic: $TOPIC"
+          FORMAT="${{ github.event.inputs.format || github.event.client_payload.format || 'shorts' }}"
+          if [ "${{ github.event.schedule }}" = "15 13 * * *" ]; then
+            FORMAT="longform"
+          fi
+          echo "Running pipeline | Format: $FORMAT | Topic: $TOPIC"
           if [ -n "$TOPIC" ]; then
-            python scripts/run_production_pipeline.py --trigger "${{ github.event_name }}" --topic "$TOPIC"
+            python scripts/run_production_pipeline.py --trigger "${{ github.event_name }}" --format "$FORMAT" --topic "$TOPIC"
           else
-            python scripts/run_production_pipeline.py --trigger "${{ github.event_name }}"
+            python scripts/run_production_pipeline.py --trigger "${{ github.event_name }}" --format "$FORMAT"
           fi

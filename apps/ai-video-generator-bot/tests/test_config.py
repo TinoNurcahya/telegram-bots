@@ -11,8 +11,11 @@ def test_config_defaults():
     assert s.GEMINI_API_KEY == "test_gemini"
     assert s.VIDEO_WIDTH == 720
     assert s.VIDEO_HEIGHT == 1280
+    assert s.LONGFORM_WIDTH == 1280
+    assert s.LONGFORM_HEIGHT == 720
     assert s.FPS == 24
     assert s.DAILY_SCHEDULE_TIME == "13:00,16:00,19:00,21:30,23:30"
+    assert s.LONGFORM_SCHEDULE_TIME == "20:15"
     assert s.daily_schedule_times == ["13:00", "16:00", "19:00", "21:30", "23:30"]
     assert s.MAX_DAILY_AUTO_VIDEOS == 5
     assert s.ENABLE_DAILY_SCHEDULER is True

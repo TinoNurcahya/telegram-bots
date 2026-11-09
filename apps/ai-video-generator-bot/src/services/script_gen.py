@@ -469,3 +469,162 @@ Return ONLY a strictly valid JSON object matching this schema:
                 )
             ]
         )
+
+    async def generate_longform_script(
+        self,
+        topic: Optional[str] = None,
+        excluded_topics: Optional[List[str]] = None
+    ) -> VideoScript:
+        """
+        Generates a 4 to 6 minute widescreen (16:9) investigative documentary script
+        structured into 3 Chapters / 15 Scenes (~750-900 words of spoken English narration)
+        to build YouTube Watch Hours (4,000h AdSense threshold) and maximize Long-Form RPM.
+        Uses slot_index=5 so the category never collides with the 5 daily Shorts slots (0..4).
+        """
+        is_dynamic_discovery = False
+        reference_angles: List[str] = []
+        investigative_lens = ""
+
+        if topic and topic.strip():
+            clean_topic = re.sub(r"[\r\n\t]+", " ", topic.strip())[:150].strip()
+            category_name = "Deep-Dive Documentary"
+            target_topic = clean_topic
+            category_desc = "An in-depth forensic and historical documentary investigation."
+        else:
+            case = self.get_rotated_case_prompt(slot_index=5)
+            category_name = case["category"]
+            target_topic = case["angle"]
+            category_desc = case["description"]
+            reference_angles = case["reference_angles"]
+            investigative_lens = case["lens"]
+            is_dynamic_discovery = True
+
+        avoid_list = list(dict.fromkeys((reference_angles or []) + (excluded_topics or [])))[:35]
+        avoid_block = "\n".join(f"  - {item}" for item in avoid_list) if avoid_list else "  - None"
+
+        if is_dynamic_discovery:
+            topic_directive = f"""
+Topic Category: {category_name} ({category_desc})
+Creative Sub-Focus / Lens for Today's Documentary: {investigative_lens}
+
+DYNAMIC DOCUMENTARY CASE SELECTION (ANTI-DUPLICATE):
+Select ONE specific, real-world documented historical mystery, scientific paradox, declassified operation, or unexplained phenomenon that fits "{category_name}" (ideally intersecting with "{investigative_lens}") and is rich enough for a 5-minute deep-dive documentary.
+DO NOT reuse or repeat any of these previously covered cases/examples:
+{avoid_block}
+Set the "topic" field in your JSON response to the exact name of the case you selected.
+"""
+        else:
+            topic_directive = f"""
+Topic Category: {category_name} ({category_desc})
+Target Documentary Case: "{target_topic}"
+"""
+
+        prompt = f"""
+You are an elite documentary narrator and investigative journalist for a high-retention widescreen YouTube Documentary channel (in the style of Lemmino, Vox, and Fern).
+Your tone is intelligent, atmospheric, forensic, and completely natural.
+{topic_directive}
+CRITICAL REQUIREMENTS FOR 16:9 LONG-FORM DOCUMENTARY (4-6 MINUTES):
+1. Structure: Exactly 15 sequential scenes (scene_number 1 through 15) divided across 3 narrative acts:
+   - Scenes 1–5 (Act I: The Anomaly & Historical Context): Hook the viewer, establish the exact time, place, and baffling premise.
+   - Scenes 6–10 (Act II: The Forensic Investigation & Competing Theories): Examine the documented evidence, scientific data, and failed explanations.
+   - Scenes 11–15 (Act III: The Breakthrough or Unsettling Conclusion): Reveal the deepest layer of the mystery and end with a thought-provoking philosophical question.
+2. Voiceover Length per Scene (voiceover_text): Write 3 to 4 rich, engaging, well-paced sentences per scene (approximately 45 to 55 words per scene, totaling ~750 words across all 15 scenes so the spoken narration lasts 4.5 to 5.5 minutes).
+3. Subtitle Text (subtitle_text): Identical to voiceover_text (English).
+4. Visual Prompts (visual_prompt): Widescreen 16:9 cinematic documentary imagery. Include:
+   "cinematic 16:9 widescreen film still, atmospheric lighting, high detail, documentary cinematography" tailored to each scene.
+5. Title & Metadata:
+   - High-CTR YouTube Documentary title in English (DO NOT include #Shorts or #shorts in the title or tags!).
+   - Detailed multi-paragraph YouTube SEO description in English.
+   - Tags: ["#documentary", "#mystery", "#science", "#history", "#investigation"].
+
+Return ONLY a strictly valid JSON object matching this schema:
+{{
+  "topic": "{target_topic}",
+  "category": "{category_name}",
+  "title": "The Unsolved Files: Inside {target_topic} (Full Documentary)",
+  "hook": "Opening documentary hook in English...",
+  "description": "Comprehensive 2-paragraph documentary overview in English...",
+  "tags": ["#documentary", "#mystery", "#science", "#history", "#investigation"],
+  "scenes": [
+    {{
+      "scene_number": 1,
+      "voiceover_text": "3-4 rich sentences of documentary narration (45-55 words)...",
+      "subtitle_text": "Identical 3-4 sentences of documentary narration...",
+      "visual_prompt": "cinematic 16:9 widescreen film still, dramatic lighting, documentary archive of ...",
+      "character_emotion": "concentration",
+      "keywords": ["documentary archive", "historical mystery"]
+    }}
+  ]
+}}
+"""
+
+        if not self.client:
+            logger.warning("Gemini Client not configured, returning fallback longform script.")
+            return self._get_fallback_longform_script(target_topic, category_name)
+
+        models_to_try = [self.model_name]
+        for fallback_m in ["gemini-flash-lite-latest", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"]:
+            if fallback_m not in models_to_try:
+                models_to_try.append(fallback_m)
+
+        for model_candidate in models_to_try:
+            try:
+                response = self.client.models.generate_content(
+                    model=model_candidate,
+                    contents=[prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.7,
+                    ),
+                )
+                raw_text = response.text.strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+
+                data = json.loads(raw_text.strip())
+                # Strip any accidental #shorts from title/tags
+                if "title" in data:
+                    data["title"] = re.sub(r"(?i)#shorts\b", "", data["title"]).strip()
+                if "tags" in data and isinstance(data["tags"], list):
+                    data["tags"] = [t for t in data["tags"] if "short" not in t.lower()] or ["#documentary", "#mystery", "#science"]
+                return VideoScript(**data)
+            except Exception as e:
+                logger.warning(f"Longform model {model_candidate} failed: {e}. Trying next candidate...")
+
+        logger.error(f"All Gemini models failed for longform. Using fallback for {target_topic}.")
+        return self._get_fallback_longform_script(target_topic, category_name)
+
+    def _get_fallback_longform_script(self, topic: str, category: str = "Deep-Dive Documentary") -> VideoScript:
+        emotions = [
+            "concentration", "anticipation", "confusion", "surprise", "fear",
+            "concentration", "contempt", "anxiety", "surprise", "sadness",
+            "concentration", "discovery" if False else "anticipation", "relief", "pride", "concentration"
+        ]
+        scenes = []
+        for idx in range(1, 16):
+            narration = (
+                f"In part {idx} of our investigation into {topic}, the documented historical and scientific records reveal a layer of complexity that few researchers ever anticipated. "
+                f"Each piece of archival evidence points toward an extraordinary sequence of events that challenges conventional explanations. "
+                f"When specialists cross-referenced these primary measurements, the resulting pattern left the scientific community searching for answers."
+            )
+            scenes.append(
+                Scene(
+                    scene_number=idx,
+                    voiceover_text=narration,
+                    subtitle_text=narration,
+                    visual_prompt=f"cinematic 16:9 widescreen film still, atmospheric lighting, documentary investigation scene {idx} of {topic}",
+                    character_emotion=emotions[(idx - 1) % len(emotions)],
+                    keywords=["documentary investigation", "archival mystery"]
+                )
+            )
+        return VideoScript(
+            topic=topic,
+            category=category,
+            title=f"The Unsolved Files: {topic} | Full Documentary",
+            hook=f"Behind the official record of {topic} lies an extraordinary mystery.",
+            description=f"An in-depth widescreen documentary investigating the evidence, anomalies, and scientific mysteries surrounding {topic}.",
+            tags=["#documentary", "#mystery", "#science", "#history", "#investigation"],
+            scenes=scenes
+        )

@@ -43,13 +43,17 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key")
     GEMINI_MODEL: str = Field(default="gemini-3.1-flash-lite", description="Gemini Model Identifier")
 
-    # Automation Scheduler (5 staggered daily runs in WIB, leaving 1 YouTube quota slot for manual runs)
-    ENABLE_DAILY_SCHEDULER: bool = Field(default=True, description="Enable APScheduler for daily Shorts generation")
+    # Automation Scheduler (5 staggered daily Shorts + 1 daily 16:9 Long-Form Documentary in WIB)
+    ENABLE_DAILY_SCHEDULER: bool = Field(default=True, description="Enable APScheduler for daily generation")
     DAILY_SCHEDULE_TIME: str = Field(
         default="13:00,16:00,19:00,21:30,23:30",
-        description="Comma-separated HH:MM schedule times in 24h format"
+        description="Comma-separated HH:MM schedule times in 24h format for Shorts"
     )
-    MAX_DAILY_AUTO_VIDEOS: int = Field(default=5, description="Number of automated videos generated per day")
+    LONGFORM_SCHEDULE_TIME: str = Field(
+        default="20:15",
+        description="Daily HH:MM schedule time in 24h format for 16:9 Long-Form Documentary"
+    )
+    MAX_DAILY_AUTO_VIDEOS: int = Field(default=5, description="Number of automated Shorts generated per day")
     SCHEDULER_TIMEZONE: str = Field(default="Asia/Jakarta", description="Timezone string")
 
     @property
@@ -65,9 +69,11 @@ class Settings(BaseSettings):
     VOICE_RATE: str = Field(default="+0%", description="Speaking speed rate")
     VOICE_PITCH: str = Field(default="+0Hz", description="Voice pitch tuning")
 
-    # Video Specifications (Vertical 9:16 Shorts)
+    # Video Specifications (Vertical 9:16 Shorts & Horizontal 16:9 Long-Form)
     VIDEO_WIDTH: int = Field(default=720)
     VIDEO_HEIGHT: int = Field(default=1280)
+    LONGFORM_WIDTH: int = Field(default=1280)
+    LONGFORM_HEIGHT: int = Field(default=720)
     FPS: int = Field(default=24)
     MAX_SCENE_COUNT: int = Field(default=6)
     MIN_SCENE_DURATION: float = Field(default=5.0)

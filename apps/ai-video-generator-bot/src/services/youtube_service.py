@@ -111,10 +111,11 @@ class YouTubeService:
         description: str,
         tags: List[str],
         thumbnail_path: Optional[Path] = None,
-        privacy_status: str = "public"
+        privacy_status: str = "public",
+        is_short: bool = True
     ) -> Optional[str]:
         """
-        Uploads .mp4 video to YouTube Shorts with automatic 3x retry on transient failures.
+        Uploads .mp4 video to YouTube (Shorts or 16:9 Long-Form) with automatic 3x retry on transient failures.
         Sets self.last_error if upload fails for transparent user feedback.
         """
         self.last_error = None
@@ -136,11 +137,13 @@ class YouTubeService:
                         logger.warning(self.last_error)
                         return None
 
+                    desc_hashtags = "#shorts #viral" if is_short else "#documentary #mystery #science"
+                    clean_tags = tags if is_short else [t for t in tags if "short" not in t.lower()]
                     body = {
                         "snippet": {
                             "title": title[:100],
-                            "description": f"{description}\n\n#shorts #viral",
-                            "tags": tags,
+                            "description": f"{description}\n\n{desc_hashtags}",
+                            "tags": clean_tags,
                             "categoryId": "27"  # Education
                         },
                         "status": {
@@ -159,7 +162,8 @@ class YouTubeService:
                             logger.info(f"YouTube upload progress (attempt {attempt}): {int(status.progress() * 100)}%")
 
                     v_id = response.get("id")
-                    logger.info(f"Successfully uploaded to YouTube: https://youtube.com/shorts/{v_id}")
+                    yt_link = f"https://youtube.com/shorts/{v_id}" if is_short else f"https://youtube.com/watch?v={v_id}"
+                    logger.info(f"Successfully uploaded to YouTube: {yt_link}")
 
                     # Set custom thumbnail if provided and supported
                     if v_id and thumbnail_path and os.path.exists(thumbnail_path):

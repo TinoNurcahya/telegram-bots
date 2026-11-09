@@ -107,9 +107,11 @@ class VideoEngine:
             "Arial",
         ]
 
-        font_size = 60
+        is_landscape = width > height
+        font_size = 46 if is_landscape else 60
+        min_font = 28 if is_landscape else 36
         font = None
-        while font_size >= 36:
+        while font_size >= min_font:
             for pf in possible_fonts:
                 try:
                     font = ImageFont.truetype(str(pf), font_size)
@@ -126,13 +128,13 @@ class VideoEngine:
             text_w = bbox[2] - bbox[0]
             text_h = bbox[3] - bbox[1]
 
-            if (text_w + padding_x * 2) <= max_allowed_w or font_size <= 36:
+            if (text_w + padding_x * 2) <= max_allowed_w or font_size <= min_font:
                 break
             font_size -= 2
 
-        # Subtitle positioning: Y ~ 65% height (Safe Zone above YouTube Shorts UI & Siesta avatar)
+        # Subtitle positioning: Y ~ 78% for 16:9 landscape, 65% for 9:16 vertical Shorts
         target_center_x = (width // 2) if (center_x is None) else center_x
-        center_y = int(height * 0.65)
+        center_y = int(height * (0.78 if is_landscape else 0.65))
         start_x = target_center_x - (text_w // 2)
 
         # Clamp horizontal boundaries so pill box never touches screen edges
@@ -179,7 +181,7 @@ class VideoEngine:
     def _group_words_into_chunks(
         self, words: List[WordTimestamp], chunk_size: int = 3
     ) -> List[List[WordTimestamp]]:
-        """Groups words into 2-3 words per chunk for fast, readable kinetic subtitles."""
+        """Groups words into readable chunks for kinetic subtitles."""
         if not words:
             return []
         chunks = []
@@ -187,10 +189,10 @@ class VideoEngine:
         n = len(words)
         while i < n:
             remaining = n - i
-            if remaining == 4:
-                take = 2
-            elif remaining >= 3:
-                take = min(chunk_size, 3)
+            if remaining == chunk_size + 1:
+                take = max(2, chunk_size - 1)
+            elif remaining >= chunk_size:
+                take = chunk_size
             else:
                 take = remaining
             chunks.append(words[i : i + take])
@@ -288,7 +290,8 @@ class VideoEngine:
                 logger.warning(f"Could not add animated avatar clip: {e}")
 
         # Kinetic Subtitle Overlays (Rendered on top of base and avatar for maximum clarity)
-        word_chunks = self._group_words_into_chunks(scene.words, chunk_size=3)
+        target_chunk_size = 4 if self.width > self.height else 3
+        word_chunks = self._group_words_into_chunks(scene.words, chunk_size=target_chunk_size)
 
         for chunk in word_chunks:
             for word_idx, active_word in enumerate(chunk):
