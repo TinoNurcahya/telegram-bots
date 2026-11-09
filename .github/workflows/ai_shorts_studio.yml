@@ -2,8 +2,13 @@ name: AI Shorts Studio Daily Production
 
 on:
   schedule:
-    # Runs daily at 01:00 UTC (08:00 WIB / Asia/Jakarta)
-    - cron: '0 1 * * *'
+    # 5x Daily Auto-Generate (Staggered Prime-Time Schedule in WIB / UTC+7)
+    # Leaves 1 quota slot (1,750 / 10,000 units) for on-demand manual /generate
+    - cron: '0 6 * * *'    # Slot 1: 13:00 WIB
+    - cron: '0 9 * * *'    # Slot 2: 16:00 WIB
+    - cron: '0 12 * * *'   # Slot 3: 19:00 WIB
+    - cron: '30 14 * * *'  # Slot 4: 21:30 WIB
+    - cron: '30 16 * * *'  # Slot 5: 23:30 WIB
   workflow_dispatch:
     inputs:
       topic:
@@ -12,6 +17,10 @@ on:
         default: ''
   repository_dispatch:
     types: [generate-video]
+
+concurrency:
+  group: ai-shorts-studio-render
+  cancel-in-progress: false
 
 jobs:
   render_and_publish:

@@ -12,7 +12,9 @@ def test_config_defaults():
     assert s.VIDEO_WIDTH == 720
     assert s.VIDEO_HEIGHT == 1280
     assert s.FPS == 24
-    assert s.DAILY_SCHEDULE_TIME == "08:00"
+    assert s.DAILY_SCHEDULE_TIME == "13:00,16:00,19:00,21:30,23:30"
+    assert s.daily_schedule_times == ["13:00", "16:00", "19:00", "21:30", "23:30"]
+    assert s.MAX_DAILY_AUTO_VIDEOS == 5
     assert s.ENABLE_DAILY_SCHEDULER is True
     assert s.abs_temp_dir.exists()
     assert s.abs_output_dir.exists()

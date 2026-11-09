@@ -14,7 +14,16 @@ async def test_fallback_script():
     assert all(s.visual_prompt for s in script.scenes)
 
 def test_random_topic():
-    service = ScriptGeneratorService()
+    service = ScriptGeneratorService(api_key="")
     t1 = service.get_random_trending_topic()
     assert isinstance(t1, str)
     assert len(t1) > 5
+
+def test_five_daily_slots_use_distinct_categories():
+    service = ScriptGeneratorService(api_key="")
+    for day in [1, 10, 100, 313]:
+        categories_for_day = [
+            service.get_rotated_case_prompt(slot_index=slot, day_of_year=day)["category"]
+            for slot in range(5)
+        ]
+        assert len(set(categories_for_day)) == 5

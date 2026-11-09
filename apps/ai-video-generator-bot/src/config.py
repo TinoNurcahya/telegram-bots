@@ -43,10 +43,19 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = Field(default="", description="Gemini API Key")
     GEMINI_MODEL: str = Field(default="gemini-3.1-flash-lite", description="Gemini Model Identifier")
 
-    # Automation Scheduler
+    # Automation Scheduler (5 staggered daily runs in WIB, leaving 1 YouTube quota slot for manual runs)
     ENABLE_DAILY_SCHEDULER: bool = Field(default=True, description="Enable APScheduler for daily Shorts generation")
-    DAILY_SCHEDULE_TIME: str = Field(default="08:00", description="HH:MM in 24h format")
+    DAILY_SCHEDULE_TIME: str = Field(
+        default="13:00,16:00,19:00,21:30,23:30",
+        description="Comma-separated HH:MM schedule times in 24h format"
+    )
+    MAX_DAILY_AUTO_VIDEOS: int = Field(default=5, description="Number of automated videos generated per day")
     SCHEDULER_TIMEZONE: str = Field(default="Asia/Jakarta", description="Timezone string")
+
+    @property
+    def daily_schedule_times(self) -> list[str]:
+        times = [t.strip() for t in (self.DAILY_SCHEDULE_TIME or "").split(",") if t.strip()]
+        return times or ["13:00", "16:00", "19:00", "21:30", "23:30"]
 
     # Audio & Voiceover (Google AI Studio TTS)
     GEMINI_TTS_MODEL: str = Field(default="gemini-3.8-flash-tts", description="Gemini Flagship TTS Model Identifier")

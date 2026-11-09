@@ -75,9 +75,23 @@ class VideoOrchestrator:
         await self.repo.log_generation(trigger_type, topic or "Auto", "in_progress")
 
         try:
-            # 1. Generate Structured Script with Gemini
-            script: VideoScript = await self.script_service.generate_script(topic)
-            logger.info(f"[{job_id}] Script generated: '{script.title}' with {len(script.scenes)} scenes.")
+            # 1. Gather recent topics from DB to prevent duplicates and generate Structured Script with Gemini
+            excluded_topics: List[str] = []
+            try:
+                recent_videos = await self.repo.get_recent_videos(limit=50)
+                for rv in recent_videos:
+                    if rv.get("topic"):
+                        excluded_topics.append(rv["topic"])
+                    if rv.get("title"):
+                        excluded_topics.append(rv["title"])
+            except Exception:
+                pass
+
+            script: VideoScript = await self.script_service.generate_script(
+                topic=topic,
+                excluded_topics=excluded_topics
+            )
+            logger.info(f"[{job_id}] Script generated: '{script.title}' (Category: {script.category}) with {len(script.scenes)} scenes.")
 
             # Pick persona & voice for varied studio delivery
             chosen_persona, chosen_voice = self.voice_service.pick_random_persona_and_voice()

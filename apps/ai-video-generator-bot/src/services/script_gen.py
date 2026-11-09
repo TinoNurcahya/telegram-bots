@@ -2,6 +2,7 @@ import json
 import re
 import logging
 import random
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -176,6 +177,21 @@ DEFAULT_TOPICS = [
     for angle in cat["angles"]
 ]
 
+INVESTIGATIVE_LENSES = [
+    "Ancient Mediterranean, Middle Eastern, or Mesopotamian archaeological records",
+    "Cold War era declassified scientific or intelligence anomalies (1947–1991)",
+    "Deep-sea oceanographic expeditions and abyssal trench discoveries",
+    "East Asian, Japanese, or Himalayan historical and geographical enigmas",
+    "19th and early 20th century forensic, maritime, or expedition mysteries",
+    "Astrophysics, deep-space telescope observations, and relativistic paradoxes",
+    "Neuroscience, extreme human perception experiments, and rare cognitive phenomena",
+    "South American, Mesoamerican, or remote island anthropological mysteries",
+    "Quantum mechanics, particle physics, and thermodynamic counter-intuitions",
+    "Cryptography, undeciphered manuscripts, and mathematical anomalies",
+    "Extreme terrestrial environments, subterranean caverns, and polar expeditions",
+    "Bioluminescent, parasitic, or extremophile biological adaptations",
+]
+
 class Scene(BaseModel):
     scene_number: int = Field(description="Sequential scene number starting at 1")
     voiceover_text: str = Field(
@@ -208,47 +224,133 @@ class ScriptGeneratorService:
         self.model_name = model_name or settings.GEMINI_MODEL
         self.client = genai.Client(api_key=self.api_key) if (genai and self.api_key) else None
 
-    def get_random_case_prompt(self) -> Dict[str, str]:
-        """Picks a random category and intriguing case angle from the comprehensive Siesta library."""
-        category_name = random.choice(list(SIESTA_CATEGORIES.keys()))
+    @staticmethod
+    def _detect_wib_slot_and_day(now_wib: Optional[datetime] = None) -> tuple[int, int]:
+        """
+        Maps current Asia/Jakarta (UTC+7) time to one of the 5 daily schedule slots (0..4):
+        Slot 0: ~13:00 WIB (< 14:30)
+        Slot 1: ~16:00 WIB (14:30 - 17:29)
+        Slot 2: ~19:00 WIB (17:30 - 20:14)
+        Slot 3: ~21:30 WIB (20:15 - 22:29)
+        Slot 4: ~23:30 WIB (>= 22:30)
+        """
+        wib_tz = timezone(timedelta(hours=7))
+        dt = now_wib or datetime.now(wib_tz)
+        day_of_year = dt.timetuple().tm_yday
+        decimal_hour = dt.hour + (dt.minute / 60.0)
+
+        if decimal_hour < 14.5:
+            slot_idx = 0
+        elif decimal_hour < 17.5:
+            slot_idx = 1
+        elif decimal_hour < 20.25:
+            slot_idx = 2
+        elif decimal_hour < 22.5:
+            slot_idx = 3
+        else:
+            slot_idx = 4
+
+        return day_of_year, slot_idx
+
+    def get_rotated_case_prompt(
+        self,
+        slot_index: Optional[int] = None,
+        day_of_year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Deterministically rotates across the 15 categories so that all 5 daily slots
+        on the same day are guaranteed to use 5 distinct categories, while pairing each
+        slot with a unique investigative lens and fallback angle.
+        """
+        auto_day, auto_slot = self._detect_wib_slot_and_day()
+        d_idx = day_of_year if day_of_year is not None else auto_day
+        s_idx = slot_index if slot_index is not None else auto_slot
+
+        categories = list(SIESTA_CATEGORIES.keys())
+        cat_idx = (d_idx * 5 + s_idx) % len(categories)
+        category_name = categories[cat_idx]
         cat_info = SIESTA_CATEGORIES[category_name]
-        angle = random.choice(cat_info["angles"])
+
+        angles = cat_info["angles"]
+        angle_idx = (d_idx + s_idx) % len(angles)
+        lens_idx = (d_idx * 5 + s_idx * 3) % len(INVESTIGATIVE_LENSES)
+
         return {
             "category": category_name,
             "description": cat_info["description"],
-            "angle": angle
+            "angle": angles[angle_idx],
+            "reference_angles": angles,
+            "lens": INVESTIGATIVE_LENSES[lens_idx],
+            "slot_index": s_idx,
+            "day_of_year": d_idx,
+        }
+
+    def get_random_case_prompt(self) -> Dict[str, str]:
+        """Picks a category and intriguing case angle using slot-aware rotation."""
+        rotated = self.get_rotated_case_prompt()
+        return {
+            "category": rotated["category"],
+            "description": rotated["description"],
+            "angle": rotated["angle"]
         }
 
     def get_random_trending_topic(self) -> str:
-        case = self.get_random_case_prompt()
+        case = self.get_rotated_case_prompt()
         return case["angle"]
 
-    async def generate_script(self, topic: Optional[str] = None) -> VideoScript:
+    async def generate_script(
+        self,
+        topic: Optional[str] = None,
+        excluded_topics: Optional[List[str]] = None,
+        slot_index: Optional[int] = None
+    ) -> VideoScript:
         """
-        Generates a high-retention YouTube Shorts script structured for AI video generation
-        with the Master Detective Siesta persona:
-        - Spoken narration in Japanese (日本語)
-        - Subtitles in English
-        - 100% random category selection when topic is None
+        Generates a high-retention YouTube Shorts script structured for AI video generation:
+        - When topic is None, uses deterministic 5-slot daily category rotation AND instructs
+          Gemini to dynamically discover a fresh, non-duplicate real-world case/anomaly.
         """
+        is_dynamic_discovery = False
+        reference_angles: List[str] = []
+        investigative_lens = ""
+
         if topic and topic.strip():
             clean_topic = re.sub(r"[\r\n\t]+", " ", topic.strip())[:150].strip()
             category_name = "Investigative Case"
             target_topic = clean_topic
             category_desc = "A mysterious anomaly requiring forensic intellectual analysis."
         else:
-            case = self.get_random_case_prompt()
+            case = self.get_rotated_case_prompt(slot_index=slot_index)
             category_name = case["category"]
             target_topic = case["angle"]
             category_desc = case["description"]
+            reference_angles = case["reference_angles"]
+            investigative_lens = case["lens"]
+            is_dynamic_discovery = True
+
+        avoid_list = list(dict.fromkeys((reference_angles or []) + (excluded_topics or [])))[:35]
+        avoid_block = "\n".join(f"  - {item}" for item in avoid_list) if avoid_list else "  - None"
+
+        if is_dynamic_discovery:
+            topic_directive = f"""
+Topic Category: {category_name} ({category_desc})
+Creative Sub-Focus / Lens for Today's Slot: {investigative_lens}
+
+DYNAMIC CASE SELECTION (ANTI-DUPLICATE):
+Instead of repeating a generic cliché, select ONE specific, real-world documented historical mystery, scientific paradox, declassified anomaly, or bizarre natural phenomenon that fits "{category_name}" (ideally intersecting with "{investigative_lens}").
+DO NOT reuse or repeat any of these previously covered cases/examples:
+{avoid_block}
+Set the "topic" field in your JSON response to the exact name of the fresh case you selected.
+"""
+        else:
+            topic_directive = f"""
+Topic Category: {category_name} ({category_desc})
+Target Case: "{target_topic}"
+"""
 
         prompt = f"""
 You are an elite female documentary & investigative narrator for viral YouTube Shorts, TikTok, and Reels (similar to the compelling, sophisticated storytelling style of Vox, Lemmino, and CuriosityStream).
 Your tone is intelligent, mature, mysterious, razor-sharp, and completely natural — NO cutesy anime tropes, NO childish banter, NO theatrical anime voice acting. Just a calm, deeply intriguing, authoritative narrator presenting mind-bending facts.
-
-Topic Category: {category_name} ({category_desc})
-Target Case: "{target_topic}"
-
+{topic_directive}
 CRITICAL REQUIREMENTS:
 1. Voiceover Language (voiceover_text): Strictly clear, natural, engaging English written specifically for spoken auditory delivery.
    - Use short, high-impact, punchy sentences.

@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -18,32 +19,35 @@ class DailyVideoScheduler:
         self.scheduler = AsyncIOScheduler(timezone=settings.SCHEDULER_TIMEZONE)
 
     def start(self) -> None:
-        """Configures and starts the daily cron job."""
+        """Configures and starts the staggered daily cron jobs (up to MAX_DAILY_AUTO_VIDEOS per day)."""
         if not settings.ENABLE_DAILY_SCHEDULER:
             logger.info("Daily video scheduler is disabled in configuration.")
             return
 
-        time_parts = settings.DAILY_SCHEDULE_TIME.split(":")
-        hour = int(time_parts[0]) if len(time_parts) > 0 else 8
-        minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+        schedule_times = settings.daily_schedule_times[: settings.MAX_DAILY_AUTO_VIDEOS]
+        for idx, time_str in enumerate(schedule_times, start=1):
+            time_parts = time_str.split(":")
+            hour = int(time_parts[0]) if len(time_parts) > 0 else 13
+            minute = int(time_parts[1]) if len(time_parts) > 1 else 0
 
-        trigger = CronTrigger(
-            hour=hour,
-            minute=minute,
-            timezone=settings.SCHEDULER_TIMEZONE
-        )
+            trigger = CronTrigger(
+                hour=hour,
+                minute=minute,
+                timezone=settings.SCHEDULER_TIMEZONE
+            )
 
-        self.scheduler.add_job(
-            self.execute_daily_run,
-            trigger=trigger,
-            id="daily_shorts_generator",
-            name="Daily AI Shorts Generation",
-            replace_existing=True
-        )
+            self.scheduler.add_job(
+                self.execute_daily_run,
+                trigger=trigger,
+                id=f"daily_shorts_slot_{idx}",
+                name=f"Daily AI Shorts Slot #{idx} ({time_str})",
+                replace_existing=True
+            )
 
         self.scheduler.start()
         logger.info(
-            f"Daily Video Scheduler successfully started: Scheduled at {settings.DAILY_SCHEDULE_TIME} ({settings.SCHEDULER_TIMEZONE})"
+            f"Daily Video Scheduler started with {len(schedule_times)} staggered slots: "
+            f"{', '.join(schedule_times)} ({settings.SCHEDULER_TIMEZONE})"
         )
 
     async def execute_daily_run(self) -> None:
@@ -53,7 +57,7 @@ class DailyVideoScheduler:
         try:
             # 1. Orchestrate video generation
             result: FullVideoResult = await self.orchestrator.create_short_video(
-                topic=None,  # Pick random trending
+                topic=None,  # Uses deterministic slot rotation + dynamic AI case discovery
                 user_id=settings.TARGET_CHAT_ID if settings.TARGET_CHAT_ID else None,
                 trigger_type="scheduled",
                 auto_upload_youtube=settings.AUTO_UPLOAD_YOUTUBE
@@ -61,16 +65,22 @@ class DailyVideoScheduler:
 
             # 2. Broadcast video to Telegram Chat / Channel if bot & chat_id are present
             if self.bot and settings.TARGET_CHAT_ID != 0:
+                voice_line = ""
+                if getattr(result, "voice_persona", None) and getattr(result, "voice_name", None):
+                    voice_line = f"\n🎙️ **Persona**: `{result.voice_persona}` | **Voice**: `{result.voice_name}`"
+
                 caption = (
                     f"🎬 **Daily Automated AI Shorts**\n\n"
                     f"📌 **{result.title}**\n\n"
                     f"📝 {result.description}\n\n"
                     f"🏷️ {' '.join(result.tags)}\n\n"
-                    f"⏱️ Durasi: {result.duration:.1f} detik"
+                    f"⏱️ Durasi: `{result.duration:.1f} detik`{voice_line}"
                 )
                 if result.youtube_id:
                     clean_yt_id = result.youtube_id.replace("_", "\\_")
                     caption += f"\n\n▶️ **YouTube Shorts**: https://youtube.com/shorts/{clean_yt_id}"
+                elif getattr(result, "youtube_error", None):
+                    caption += f"\n\n⚠️ **Status Upload YouTube**: _{result.youtube_error}_"
 
                 video_file = FSInputFile(result.video_path)
                 thumb_input = FSInputFile(result.thumbnail_path) if result.thumbnail_path and os.path.exists(result.thumbnail_path) else None

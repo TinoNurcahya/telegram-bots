@@ -115,7 +115,7 @@ class handler(BaseHTTPRequestHandler):
                     "⚙️ *Status Sistem AI Shorts Studio*\n\n"
                     "🟢 *Webhook Bridge*: Aktif (Vercel Serverless)\n"
                     "🚀 *Render Engine*: GitHub Actions (4 vCPU / 16 GB RAM)\n"
-                    "⏰ *Jadwal Harian*: Setiap 08:00 WIB (Asia/Jakarta)\n"
+                    "⏰ *Jadwal Otomatis (5x/Hari)*: `13:00, 16:00, 19:00, 21:30, 23:30 WIB`\n"
                     f"🆔 *Chat ID Anda*: `{chat_id}`"
                 )
                 send_telegram_message(chat_id, status_text)
