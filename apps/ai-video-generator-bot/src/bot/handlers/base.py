@@ -40,7 +40,8 @@ async def cmd_start(message: Message):
 async def cmd_help(message: Message):
     text = (
         "📖 **Panduan Penggunaan AI Shorts Studio**\n\n"
-        "🔹 `/generate [topik opsional]` — Langsung membuat video topik acak (atau topik tertentu jika kamu tentukan).\n"
+        "🔹 `/generate [topik opsional]` — Membuat video Shorts vertikal 9:16 (~60 detik).\n"
+        "🔹 `/longform [topik opsional]` — Membuat video Dokumenter Panjang 16:9 (4–6 menit, 3 babak).\n"
         "🔹 `/topics` — Menampilkan daftar 15+ kategori investigasi, sains, dan misteri yang tersedia.\n"
         "🔹 `/stats` — Menampilkan total video yang telah digenerate dan statistik upload.\n"
         "🔹 `/status` — Memeriksa koneksi sistem, latency ping, dan konfigurasi narator suara.\n"

@@ -31,7 +31,7 @@ def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) ->
         print(f"Error sending Telegram message: {e}")
         return False
 
-def trigger_github_action(topic: str = "") -> bool:
+def trigger_github_action(topic: str = "", video_format: str = "shorts") -> bool:
     """Triggers GitHub Actions repository_dispatch event to start video rendering."""
     if not GH_TOKEN:
         print("GH_TOKEN is not configured.")
@@ -41,7 +41,8 @@ def trigger_github_action(topic: str = "") -> bool:
     payload = {
         "event_type": "generate-video",
         "client_payload": {
-            "topic": topic
+            "topic": topic,
+            "format": video_format
         }
     }
     data = json.dumps(payload).encode("utf-8")
@@ -93,20 +94,21 @@ class handler(BaseHTTPRequestHandler):
             if text.startswith("/start"):
                 welcome_text = (
                     "🎬 *Selamat Datang di AI Shorts Studio!* ⚡\n\n"
-                    "Studio produksi video vertikal 9:16 otomatis dengan narasi Female English Natural profesional.\n\n"
-                    "🔹 `/generate [topik opsional]` — Memulai pembuatan video Shorts.\n"
-                    "🔹 `/status` — Memeriksa status pipeline dan engine render.\n"
+                    "Studio produksi video otomatis (9:16 Shorts & 16:9 Long-Form Documentary) dengan narasi English Natural profesional.\n\n"
+                    "🔹 `/generate [topik opsional]` — Membuat video Shorts (9:16, ~60 detik).\n"
+                    "🔹 `/longform [topik opsional]` — Membuat video Dokumenter Panjang (16:9, 4–6 menit).\n"
+                    "🔹 `/status` — Memeriksa status pipeline dan jadwal otomatis.\n"
                     "🔹 `/help` — Panduan penggunaan bot.\n\n"
-                    "💡 *Ketik `/generate` untuk langsung membuat video misteri/sains otomatis!*"
+                    "💡 *Ketik `/generate` atau `/longform` untuk langsung membuat video otomatis!*"
                 )
                 send_telegram_message(chat_id, welcome_text)
 
             elif text.startswith("/help"):
                 help_text = (
                     "📖 *Panduan Penggunaan AI Shorts Studio*\n\n"
-                    "1. Ketik `/generate` untuk membuat video dengan topik 100% acak.\n"
-                    "2. Ketik `/generate Rahasia Piramida Giza` untuk topik spesifik.\n"
-                    "3. Pipeline akan merender video di cloud engine 16GB RAM dan mengirim hasilnya langsung ke chat ini!"
+                    "1. Ketik `/generate` (atau `/generate Topik`) untuk membuat video vertikal Shorts (9:16).\n"
+                    "2. Ketik `/longform` (atau `/longform Topik`) untuk membuat video Dokumenter Panjang (16:9, durasi 4–6 menit).\n"
+                    "3. Pipeline akan merender video di cloud engine 16GB RAM, mengupload ke YouTube, dan mengirim hasilnya langsung ke chat ini!"
                 )
                 send_telegram_message(chat_id, help_text)
 
@@ -148,7 +150,41 @@ class handler(BaseHTTPRequestHandler):
                 send_telegram_message(chat_id, notify_msg)
 
                 # Trigger the heavyweight GitHub Action
-                success = trigger_github_action(topic=custom_topic)
+                success = trigger_github_action(topic=custom_topic, video_format="shorts")
+                if not success:
+                    send_telegram_message(
+                        chat_id,
+                        "⚠️ *Gagal memicu Render Engine.*\nPastikan `GH_PAT` telah dikonfigurasi di Environment Variables Vercel."
+                    )
+
+            elif text.startswith("/longform"):
+                # Admin Access Verification
+                if TARGET_CHAT_ID and str(TARGET_CHAT_ID) != "0":
+                    if str(user_id) != str(TARGET_CHAT_ID) and str(chat_id) != str(TARGET_CHAT_ID):
+                        send_telegram_message(
+                            chat_id,
+                            "⛔ *Akses Ditolak*\n\nBot ini beroperasi sebagai Studio Pribadi. "
+                            "Perintah pembuatan video hanya diizinkan untuk Admin Studio terdaftar."
+                        )
+                        self.send_response(200)
+                        self.end_headers()
+                        self.wfile.write(b"OK")
+                        return
+
+                parts = text.split(maxsplit=1)
+                custom_topic = parts[1].strip() if len(parts) > 1 else ""
+
+                topic_desc = f"*\"{custom_topic}\"*" if custom_topic else "*Rotasi Kategori Dokumenter (Anti-Duplikat)*"
+                notify_msg = (
+                    "🎥 *Studio Dokumenter Panjang (16:9) Dimulai!*\n\n"
+                    f"📌 Topik: {topic_desc}\n"
+                    "📐 Format: `1280x720 (16:9 Widescreen | 3 Babak / 4–6 Menit)`\n"
+                    "⚡ Permintaan sedang dikirim ke Render Engine (GitHub Actions 16GB RAM).\n"
+                    "⏳ Video dokumenter, thumbnail 16:9, dan link YouTube akan otomatis dikirim ke sini dalam ~3–5 menit!"
+                )
+                send_telegram_message(chat_id, notify_msg)
+
+                success = trigger_github_action(topic=custom_topic, video_format="longform")
                 if not success:
                     send_telegram_message(
                         chat_id,

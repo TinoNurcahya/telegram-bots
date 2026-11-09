@@ -34,14 +34,16 @@ async def process_video_generation(
     chat_id: int,
     status_msg: Message,
     topic: str = None,
-    user_id: int = None
+    user_id: int = None,
+    video_format: str = "shorts"
 ):
     """Executes the pipeline with concurrency protection and progressive status updates."""
+    is_longform = (video_format or "shorts").lower() == "longform"
     if _generation_lock.locked():
         await status_msg.edit_text(
             "⚠️ **Studio Sedang Memproses Video**\n\n"
             "Saat ini sistem sedang aktif merender video lain. Untuk menjaga stabilitas server dan mencegah crash, "
-            "harap tunggu hingga proses sebelumnya selesai (sekitar 1–2 menit).",
+            "harap tunggu hingga proses sebelumnya selesai.",
             reply_markup=get_main_menu_keyboard(),
             parse_mode="Markdown"
         )
@@ -49,7 +51,8 @@ async def process_video_generation(
 
     async with _generation_lock:
         try:
-            await status_msg.edit_text("🧠 [1/4] Merancang naskah investigasi & fakta menarik via Gemini AI...")
+            mode_label = "Dokumenter Panjang 16:9 (3 Babak)" if is_longform else "Shorts 9:16"
+            await status_msg.edit_text(f"🧠 [1/4] Merancang naskah {mode_label} via Gemini AI...")
 
             async def update_progress(msg_text: str):
                 try:
@@ -63,33 +66,43 @@ async def process_video_generation(
                 user_id=user_id,
                 trigger_type="manual",
                 auto_upload_youtube=settings.AUTO_UPLOAD_YOUTUBE,
-                progress_callback=update_progress
+                progress_callback=update_progress,
+                video_format=video_format
             )
 
             # Validate file existence and size (< 50MB limit for Telegram Bot API)
             file_size_bytes = os.path.getsize(result.video_path)
             file_size_mb = file_size_bytes / (1024 * 1024)
             if file_size_mb > 49.5:
+                yt_fallback = f"\n▶️ **YouTube**: https://youtube.com/watch?v={result.youtube_id}" if result.youtube_id else ""
                 await status_msg.edit_text(
                     f"⚠️ Ukuran file video ({file_size_mb:.1f} MB) melebihi batas 50MB Telegram Bot API.\n"
-                    f"File tersimpan lokal di: `{result.video_path}`"
+                    f"File tersimpan lokal di: `{result.video_path}`{yt_fallback}"
                 )
                 return
 
-            format_str = f"{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT} (9:16)"
+            format_str = (
+                f"{settings.LONGFORM_WIDTH}x{settings.LONGFORM_HEIGHT} (16:9)"
+                if is_longform
+                else f"{settings.VIDEO_WIDTH}x{settings.VIDEO_HEIGHT} (9:16)"
+            )
             voice_line = ""
             if getattr(result, "voice_persona", None) and getattr(result, "voice_name", None):
                 voice_line = f"\n🎙️ **Persona**: `{result.voice_persona}` | **Voice**: `{result.voice_name}`"
 
+            short_desc = result.description[:450] + "..." if len(result.description) > 450 else result.description
             caption = (
                 f"🎬 **{result.title}**\n\n"
-                f"📝 {result.description}\n\n"
+                f"📝 {short_desc}\n\n"
                 f"🏷️ {' '.join(result.tags)}\n\n"
                 f"⏱️ **Durasi**: `{result.duration:.1f} detik` | 📐 **Format**: `{format_str}`{voice_line}"
             )
             if result.youtube_id:
                 clean_yt_id = result.youtube_id.replace("_", "\\_")
-                caption += f"\n\n▶️ **YouTube Shorts**:\nhttps://youtube.com/shorts/{clean_yt_id}"
+                if is_longform:
+                    caption += f"\n\n▶️ **YouTube Documentary (16:9)**:\nhttps://youtube.com/watch?v={clean_yt_id}"
+                else:
+                    caption += f"\n\n▶️ **YouTube Shorts**:\nhttps://youtube.com/shorts/{clean_yt_id}"
             elif getattr(result, "youtube_error", None):
                 caption += f"\n\n⚠️ **Status Upload YouTube**: _{result.youtube_error}_"
 
@@ -167,7 +180,40 @@ async def cmd_generate(message: Message):
         chat_id=message.chat.id,
         status_msg=status_msg,
         topic=topic,
-        user_id=message.from_user.id
+        user_id=message.from_user.id,
+        video_format="shorts"
+    )
+
+@router.message(Command("longform"))
+async def cmd_longform(message: Message):
+    if settings.TARGET_CHAT_ID and settings.TARGET_CHAT_ID != 0:
+        if message.from_user.id != settings.TARGET_CHAT_ID and message.chat.id != settings.TARGET_CHAT_ID:
+            await message.answer(
+                "⛔ **Akses Khusus Pemilik Studio**\n\n"
+                "Bot ini dikonfigurasi sebagai Studio Produksi Pribadi. "
+                "Perintah pembuatan video hanya diizinkan untuk Admin Studio terdaftar.",
+                reply_markup=get_main_menu_keyboard(),
+                parse_mode="Markdown"
+            )
+            return
+
+    topic = None
+    if message.text and message.text.startswith("/longform"):
+        parts = message.text.split(maxsplit=1)
+        topic = parts[1].strip() if len(parts) > 1 else None
+
+    status_text = (
+        f"🎥 **Mempersiapkan Dokumenter Panjang (16:9): \"{topic}\"...**"
+        if topic
+        else "🎥 **Membuka Proyek Dokumenter Panjang (16:9 | 4–6 Menit)...**\n🎲 Kategori dipilih secara otomatis..."
+    )
+    status_msg = await message.answer(status_text, parse_mode="Markdown")
+    await process_video_generation(
+        chat_id=message.chat.id,
+        status_msg=status_msg,
+        topic=topic,
+        user_id=message.from_user.id,
+        video_format="longform"
     )
 
 @router.message(Command("topics"))

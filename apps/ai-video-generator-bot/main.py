@@ -35,7 +35,8 @@ async def setup_bot_commands(bot: Bot):
     in the chat bar so users can quickly pick actions without typing '/'.
     """
     commands = [
-        BotCommand(command="generate", description="🎬 Generate Video Baru (1-Click)"),
+        BotCommand(command="generate", description="🎬 Generate Video Shorts (9:16)"),
+        BotCommand(command="longform", description="🎥 Generate Dokumenter Panjang (16:9)"),
         BotCommand(command="topics", description="🔍 15+ Kategori Misteri & Sains"),
         BotCommand(command="stats", description="📊 Riwayat & Statistik Video"),
         BotCommand(command="status", description="⚙️ Status Sistem & Otomasi"),
