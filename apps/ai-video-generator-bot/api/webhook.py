@@ -31,19 +31,23 @@ def send_telegram_message(chat_id: int, text: str, reply_markup: dict = None) ->
         print(f"Error sending Telegram message: {e}")
         return False
 
-def trigger_github_action(topic: str = "", video_format: str = "shorts") -> bool:
-    """Triggers GitHub Actions repository_dispatch event to start video rendering."""
+def trigger_github_action(topic: str = "", video_format: str = "shorts", extra_payload: dict = None) -> bool:
+    """Triggers GitHub Actions repository_dispatch event to start video rendering or deferred upload."""
     if not GH_TOKEN:
         print("GH_TOKEN is not configured.")
         return False
 
     url = f"https://api.github.com/repos/{GH_REPO}/dispatches"
+    client_payload = {
+        "topic": topic,
+        "format": video_format
+    }
+    if extra_payload:
+        client_payload.update(extra_payload)
+
     payload = {
         "event_type": "generate-video",
-        "client_payload": {
-            "topic": topic,
-            "format": video_format
-        }
+        "client_payload": client_payload
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
@@ -222,12 +226,31 @@ class handler(BaseHTTPRequestHandler):
                         send_telegram_message(cb_chat_id, notify_msg)
                         trigger_github_action(topic="")
             elif cb_data.startswith("yt_upload:"):
-                send_telegram_message(
-                    cb_chat_id,
-                    "ℹ️ *Info Cloud Render Engine*\n\n"
-                    "Pada mode Cloud (GitHub Actions), file video bersifat sementara di runner dan diupload otomatis saat proses render berlangsung.\n"
-                    "Pastikan secret `YOUTUBE_TOKEN_JSON` di GitHub sudah diperbarui, lalu klik *🎬 Buat Video Baru* untuk merender & mengupload otomatis ke YouTube Shorts!"
-                )
+                msg_obj = callback_query.get("message") or {}
+                video_obj = msg_obj.get("video") or {}
+                file_id = video_obj.get("file_id", "")
+                caption = (msg_obj.get("caption") or "")[:400]
+                msg_id = msg_obj.get("message_id", 0)
+
+                if file_id:
+                    send_telegram_message(
+                        cb_chat_id,
+                        "📡 *Mengunggah Video Ini ke YouTube...*\n\n"
+                        "File video yang sudah jadi ini sedang diambil langsung dari Telegram dan diupload ke YouTube (*tanpa perlu generate ulang*).\n"
+                        "⏳ Harap tunggu ~30–60 detik!"
+                    )
+                    trigger_github_action(
+                        extra_payload={
+                            "retry_file_id": file_id,
+                            "retry_caption": caption,
+                            "retry_msg_id": msg_id
+                        }
+                    )
+                else:
+                    send_telegram_message(
+                        cb_chat_id,
+                        "⚠️ File video tidak ditemukan pada pesan ini."
+                    )
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

@@ -54,6 +54,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Restore Pending YouTube Upload Queue
+        uses: actions/cache/restore@v4
+        with:
+          path: apps/ai-video-generator-bot/storage/pending_uploads
+          key: pending-yt-uploads-${{ github.run_id }}
+          restore-keys: |
+            pending-yt-uploads-
+
       - name: Execute Video Production Pipeline
         working-directory: apps/ai-video-generator-bot
         env:
@@ -64,8 +72,18 @@ jobs:
           YOUTUBE_TOKEN_JSON: ${{ secrets.YOUTUBE_TOKEN_JSON }}
           AUTO_UPLOAD_YOUTUBE: 'true'
           ENABLE_DAILY_SCHEDULER: 'false'
+          RETRY_FILE_ID: ${{ github.event.client_payload.retry_file_id || '' }}
+          RETRY_CAPTION: ${{ github.event.client_payload.retry_caption || '' }}
+          RETRY_MSG_ID: ${{ github.event.client_payload.retry_msg_id || '0' }}
         run: |
-          # Determine topic and format from schedule, workflow_dispatch, or repository_dispatch
+          # 1. If triggered by Telegram "Coba Upload ke YouTube Lagi" button, upload existing video directly without re-rendering
+          if [ -n "$RETRY_FILE_ID" ]; then
+            echo "Retrying YouTube upload for existing Telegram file_id..."
+            python scripts/run_production_pipeline.py --retry-file-id "$RETRY_FILE_ID" --retry-caption "$RETRY_CAPTION" --retry-msg-id "$RETRY_MSG_ID"
+            exit 0
+          fi
+
+          # 2. Otherwise determine topic and format from schedule, workflow_dispatch, or repository_dispatch
           TOPIC="${{ github.event.inputs.topic || github.event.client_payload.topic || '' }}"
           FORMAT="${{ github.event.inputs.format || github.event.client_payload.format || 'shorts' }}"
           if [ "${{ github.event.schedule }}" = "15 13 * * *" ]; then
@@ -77,3 +95,10 @@ jobs:
           else
             python scripts/run_production_pipeline.py --trigger "${{ github.event_name }}" --format "$FORMAT"
           fi
+
+      - name: Save Pending YouTube Upload Queue (If Any Deferred Videos Exist)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: apps/ai-video-generator-bot/storage/pending_uploads
+          key: pending-yt-uploads-${{ github.run_id }}
