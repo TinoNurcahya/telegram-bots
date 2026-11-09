@@ -319,11 +319,15 @@ async def cb_yt_upload(call: CallbackQuery):
     try:
         from pathlib import Path
         import html
+        video_path = Path(video_record["video_path"])
+        thumb_name = video_path.name.replace("short_", "thumb_").replace(".mp4", ".jpg")
+        thumb_path = video_path.parent / thumb_name
         yt_id = await youtube_service.upload_video(
-            video_path=Path(video_record["video_path"]),
+            video_path=video_path,
             title=video_record["title"],
             description=video_record["description"] or "",
             tags=(video_record["tags"] or "").split(),
+            thumbnail_path=thumb_path if thumb_path.exists() else None,
             privacy_status=settings.YOUTUBE_PRIVACY_STATUS
         )
         if yt_id:
@@ -343,7 +347,8 @@ async def cb_yt_upload(call: CallbackQuery):
             except Exception:
                 pass
         else:
-            await progress_msg.edit_text("❌ Gagal mengautentikasi ke YouTube Data API.")
+            err_detail = youtube_service.last_error or "Gagal mengautentikasi ke YouTube Data API."
+            await progress_msg.edit_text(f"❌ {html.escape(err_detail)}", parse_mode="HTML")
     except Exception as e:
         import html
         logger.error(f"YouTube upload error: {e}")

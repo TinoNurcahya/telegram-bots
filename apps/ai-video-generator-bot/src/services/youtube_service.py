@@ -36,7 +36,7 @@ class YouTubeService:
 
     def _ensure_token_restored(self):
         """Restores youtube_token.json from YOUTUBE_TOKEN_JSON environment variable if available."""
-        env_token = os.environ.get("YOUTUBE_TOKEN_JSON")
+        env_token = (os.environ.get("YOUTUBE_TOKEN_JSON") or "").strip()
         if env_token and not self.credentials_storage.exists():
             try:
                 self.credentials_storage.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +81,11 @@ class YouTubeService:
                         pass
                     logger.info("YouTube OAuth access token successfully refreshed.")
                 except Exception as re:
+                    err_str = str(re).lower()
+                    if "invalid_grant" in err_str:
+                        self.last_error = "Token otorisasi YouTube kadaluarsa atau dicabut (invalid_grant). Perbarui YOUTUBE_TOKEN_JSON."
+                    else:
+                        self.last_error = f"Gagal me-refresh token YouTube: {str(re)[:120]}"
                     logger.warning(f"Could not refresh YouTube token, will re-authenticate: {re}")
                     creds = None
 
@@ -126,7 +131,8 @@ class YouTubeService:
                 try:
                     youtube = self.get_authenticated_service()
                     if not youtube:
-                        self.last_error = "Gagal mengautentikasi kredensial YouTube."
+                        if not self.last_error:
+                            self.last_error = "Gagal mengautentikasi kredensial YouTube."
                         logger.warning(self.last_error)
                         return None
 

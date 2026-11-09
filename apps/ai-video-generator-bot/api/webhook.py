@@ -157,9 +157,20 @@ class handler(BaseHTTPRequestHandler):
         # Handle Callback Query
         callback_query = update.get("callback_query")
         if callback_query:
+            cb_id = callback_query.get("id")
             cb_chat_id = callback_query.get("message", {}).get("chat", {}).get("id")
             cb_user_id = callback_query.get("from", {}).get("id")
             cb_data = callback_query.get("data", "")
+
+            # Acknowledge callback query to stop Telegram loading spinner
+            if BOT_TOKEN and cb_id:
+                try:
+                    ans_url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+                    ans_data = json.dumps({"callback_query_id": cb_id}).encode("utf-8")
+                    ans_req = urllib.request.Request(ans_url, data=ans_data, headers={"Content-Type": "application/json"})
+                    urllib.request.urlopen(ans_req, timeout=3).close()
+                except Exception:
+                    pass
 
             if cb_data in ("btn:generate_instant", "btn:generate_prompt") or cb_data.startswith("gen_topic:"):
                 if TARGET_CHAT_ID and str(TARGET_CHAT_ID) != "0":
@@ -173,6 +184,13 @@ class handler(BaseHTTPRequestHandler):
                         )
                         send_telegram_message(cb_chat_id, notify_msg)
                         trigger_github_action(topic="")
+            elif cb_data.startswith("yt_upload:"):
+                send_telegram_message(
+                    cb_chat_id,
+                    "ℹ️ *Info Cloud Render Engine*\n\n"
+                    "Pada mode Cloud (GitHub Actions), file video bersifat sementara di runner dan diupload otomatis saat proses render berlangsung.\n"
+                    "Pastikan secret `YOUTUBE_TOKEN_JSON` di GitHub sudah diperbarui, lalu klik *🎬 Buat Video Baru* untuk merender & mengupload otomatis ke YouTube Shorts!"
+                )
 
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

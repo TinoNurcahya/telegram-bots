@@ -62,6 +62,8 @@ async def run_pipeline(
     logger.info(f"⏱️ Duration: {result.duration:.1f}s | Title: {result.title}")
     if result.youtube_id:
         logger.info(f"▶️ YouTube Shorts URL: https://youtube.com/shorts/{result.youtube_id}")
+    elif getattr(result, "youtube_error", None):
+        logger.warning(f"⚠️ YouTube Upload Skipped/Failed: {result.youtube_error}")
 
     # 4. Broadcast to Telegram if configured
     clean_bot_token = (settings.BOT_TOKEN or "").strip().strip("'\"").replace(" ", "").replace("\r", "").replace("\n", "")
@@ -81,7 +83,12 @@ async def run_pipeline(
         try:
             logger.info(f"📡 Delivering video to Telegram Chat ID: {settings.TARGET_CHAT_ID}...")
             clean_yt_id = result.youtube_id.replace("_", "\\_") if result.youtube_id else None
-            yt_line = f"\n\n▶️ **YouTube Shorts**: https://youtube.com/shorts/{clean_yt_id}" if clean_yt_id else ""
+            if clean_yt_id:
+                yt_line = f"\n\n▶️ **YouTube Shorts**: https://youtube.com/shorts/{clean_yt_id}"
+            elif getattr(result, "youtube_error", None):
+                yt_line = f"\n\n⚠️ **Status Upload YouTube**: _{result.youtube_error}_"
+            else:
+                yt_line = ""
             voice_line = ""
             if getattr(result, "voice_persona", None) and getattr(result, "voice_name", None):
                 voice_line = f"\n🎙️ **Persona**: `{result.voice_persona}` | **Voice**: `{result.voice_name}`"
