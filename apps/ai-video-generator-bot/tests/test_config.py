@@ -14,9 +14,9 @@ def test_config_defaults():
     assert s.LONGFORM_WIDTH == 1280
     assert s.LONGFORM_HEIGHT == 720
     assert s.FPS == 24
-    assert s.DAILY_SCHEDULE_TIME == "13:00,16:00,19:00,21:30,23:30"
-    assert s.LONGFORM_SCHEDULE_TIME == "20:15"
-    assert s.daily_schedule_times == ["13:00", "16:00", "19:00", "21:30", "23:30"]
+    assert s.DAILY_SCHEDULE_TIME == "08:00,10:30,13:00,15:30,18:00"
+    assert s.LONGFORM_SCHEDULE_TIME == "20:00"
+    assert s.daily_schedule_times == ["08:00", "10:30", "13:00", "15:30", "18:00"]
     assert s.MAX_DAILY_AUTO_VIDEOS == 5
     assert s.ENABLE_DAILY_SCHEDULER is True
     assert s.abs_temp_dir.exists()

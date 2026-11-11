@@ -227,25 +227,25 @@ class ScriptGeneratorService:
     @staticmethod
     def _detect_wib_slot_and_day(now_wib: Optional[datetime] = None) -> tuple[int, int]:
         """
-        Maps current Asia/Jakarta (UTC+7) time to one of the 5 daily schedule slots (0..4):
-        Slot 0: ~13:00 WIB (< 14:30)
-        Slot 1: ~16:00 WIB (14:30 - 17:29)
-        Slot 2: ~19:00 WIB (17:30 - 20:14)
-        Slot 3: ~21:30 WIB (20:15 - 22:29)
-        Slot 4: ~23:30 WIB (>= 22:30)
+        Maps current Asia/Jakarta (UTC+7) time to one of the 5 daily Shorts schedule slots (0..4):
+        Slot 0: ~08:00 WIB (< 09:15)
+        Slot 1: ~10:30 WIB (09:15 - 11:44)
+        Slot 2: ~13:00 WIB (11:45 - 14:14)
+        Slot 3: ~15:30 WIB (14:15 - 16:44)
+        Slot 4: ~18:00 WIB (>= 16:45)
         """
         wib_tz = timezone(timedelta(hours=7))
         dt = now_wib or datetime.now(wib_tz)
         day_of_year = dt.timetuple().tm_yday
         decimal_hour = dt.hour + (dt.minute / 60.0)
 
-        if decimal_hour < 14.5:
+        if decimal_hour < 9.25:
             slot_idx = 0
-        elif decimal_hour < 17.5:
+        elif decimal_hour < 11.75:
             slot_idx = 1
-        elif decimal_hour < 20.25:
+        elif decimal_hour < 14.25:
             slot_idx = 2
-        elif decimal_hour < 22.5:
+        elif decimal_hour < 16.75:
             slot_idx = 3
         else:
             slot_idx = 4

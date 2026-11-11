@@ -46,11 +46,11 @@ class Settings(BaseSettings):
     # Automation Scheduler (5 staggered daily Shorts + 1 daily 16:9 Long-Form Documentary in WIB)
     ENABLE_DAILY_SCHEDULER: bool = Field(default=True, description="Enable APScheduler for daily generation")
     DAILY_SCHEDULE_TIME: str = Field(
-        default="13:00,16:00,19:00,21:30,23:30",
+        default="08:00,10:30,13:00,15:30,18:00",
         description="Comma-separated HH:MM schedule times in 24h format for Shorts"
     )
     LONGFORM_SCHEDULE_TIME: str = Field(
-        default="20:15",
+        default="20:00",
         description="Daily HH:MM schedule time in 24h format for 16:9 Long-Form Documentary"
     )
     MAX_DAILY_AUTO_VIDEOS: int = Field(default=5, description="Number of automated Shorts generated per day")
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     @property
     def daily_schedule_times(self) -> list[str]:
         times = [t.strip() for t in (self.DAILY_SCHEDULE_TIME or "").split(",") if t.strip()]
-        return times or ["13:00", "16:00", "19:00", "21:30", "23:30"]
+        return times or ["08:00", "10:30", "13:00", "15:30", "18:00"]
 
     # Audio & Voiceover (Google AI Studio TTS)
     GEMINI_TTS_MODEL: str = Field(default="gemini-3.8-flash-tts", description="Gemini Flagship TTS Model Identifier")
